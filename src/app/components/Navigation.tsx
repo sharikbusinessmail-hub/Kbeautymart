@@ -9,6 +9,8 @@ import {
   Heart,
   ChevronDown,
   Shield,
+  ChevronLeft,
+  Flame,
 } from "lucide-react";
 import { useStore } from "./store";
 
@@ -20,9 +22,12 @@ const categories: Record<string, string[]> = {
   Accessories: ["Jewelry", "Bags", "Keychains", "Phone Cases"],
 };
 
+const TRENDING_ITEMS = ["NewJeans", "Stray Kids"];
+
 export default function Navigation() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
+  const [mobileDepthCategory, setMobileDepthCategory] = useState<string | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const { cartCount, wishlist, searchQuery, setSearchQuery } = useStore();
   const navigate = useNavigate();
@@ -78,14 +83,16 @@ export default function Navigation() {
                       <button
                         key={item}
                         onClick={() => handleSubcategoryClick(cat, item)}
-                        className="w-full text-left px-5 py-2.5 text-gray-700 hover:bg-purple-50 hover:text-[#9966cc] transition-colors text-sm flex justify-between items-center"
+                        className="w-full text-left px-5 py-2.5 text-gray-700 hover:bg-purple-50 hover:text-[#9966cc] transition-colors text-sm"
                       >
-                        {item}
-                        {(item === "NewJeans" || item === "Stray Kids" || item === "Skincare") && (
-                          <span className="bg-[#9966cc] text-white text-[9px] px-1.5 py-0.5 rounded-full font-bold uppercase">
-                            Hot
-                          </span>
-                        )}
+                        <span className="flex items-center gap-2">
+                          {item}
+                          {TRENDING_ITEMS.includes(item) && (
+                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-orange-100 text-orange-600 rounded-full text-[10px] font-bold uppercase">
+                              <Flame className="w-3 h-3" /> Trending
+                            </span>
+                          )}
+                        </span>
                       </button>
                     ))}
                     <div className="border-t border-gray-100 mt-1 pt-1">
@@ -209,42 +216,59 @@ export default function Navigation() {
               </div>
             </div>
 
-            {Object.entries(categories).map(([cat, items]) => {
-              const mobileKey = `${cat}-mobile`;
-              return (
-                <div key={cat}>
+            {/* Breadcrumb back button for nested view */}
+            {mobileDepthCategory && (
+              <button
+                onClick={() => setMobileDepthCategory(null)}
+                className="flex items-center gap-2 text-[#9966cc] font-medium py-2 mb-1"
+              >
+                <ChevronLeft className="w-4 h-4" />
+                Back to Categories
+              </button>
+            )}
+
+            {!mobileDepthCategory ? (
+              // Top-level categories
+              Object.keys(categories).map((cat) => (
+                <button
+                  key={cat}
+                  onClick={() => setMobileDepthCategory(cat)}
+                  className="w-full text-left font-medium text-gray-900 flex items-center justify-between py-3"
+                >
+                  {cat}
+                  <ChevronDown className="w-4 h-4 -rotate-90" />
+                </button>
+              ))
+            ) : (
+              // Subcategory view
+              <div className="space-y-1">
+                <p className="text-xs text-gray-400 uppercase tracking-wide font-semibold mb-2">{mobileDepthCategory}</p>
+                {categories[mobileDepthCategory].map((item) => (
                   <button
-                    onClick={() =>
-                      setActiveDropdown(activeDropdown === mobileKey ? null : mobileKey)
-                    }
-                    className="w-full text-left font-medium text-gray-900 flex items-center justify-between py-3"
+                    key={item}
+                    onClick={() => handleSubcategoryClick(mobileDepthCategory, item)}
+                    className="flex items-center gap-2 w-full text-left py-2.5 text-gray-700 hover:text-[#9966cc] text-sm"
                   >
-                    {cat}
-                    <ChevronDown
-                      className={`w-4 h-4 transition-transform ${activeDropdown === mobileKey ? "rotate-180" : ""}`}
-                    />
+                    {item}
+                    {TRENDING_ITEMS.includes(item) && (
+                      <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-orange-100 text-orange-600 rounded-full text-[10px] font-bold uppercase">
+                        <Flame className="w-3 h-3" /> Trending
+                      </span>
+                    )}
                   </button>
-                  {activeDropdown === mobileKey && (
-                    <div className="pl-4 space-y-1 pb-2">
-                      {items.map((item) => (
-                        <button
-                          key={item}
-                          onClick={() => handleSubcategoryClick(cat, item)}
-                          className="w-full text-left py-2 text-gray-600 hover:text-[#9966cc] text-sm flex justify-between items-center pr-4"
-                        >
-                          {item}
-                          {(item === "NewJeans" || item === "Stray Kids" || item === "Skincare") && (
-                            <span className="bg-[#9966cc] text-white text-[9px] px-1.5 py-0.5 rounded-full font-bold uppercase">
-                              Hot
-                            </span>
-                          )}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+                ))}
+                <button
+                  onClick={() => {
+                    navigate(`/category/${encodeURIComponent(mobileDepthCategory)}`);
+                    setMobileMenuOpen(false);
+                    setMobileDepthCategory(null);
+                  }}
+                  className="w-full text-left py-2.5 text-[#9966cc] font-medium text-sm mt-1 border-t border-gray-100 pt-3"
+                >
+                  View All {mobileDepthCategory}
+                </button>
+              </div>
+            )}
 
             <div className="flex items-center justify-around pt-4 border-t border-gray-200">
               <Link
