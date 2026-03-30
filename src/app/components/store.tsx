@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback, ReactNode } from "react";
+import { createContext, useContext, useState, useCallback, useEffect, ReactNode } from "react";
 
 export interface Product {
   id: string;
@@ -15,7 +15,7 @@ export interface Product {
   material?: string;
   skinType?: string;
   volume?: string;
-  statusTag?: string | null; // "Clearance" | "Limited Stock" | "Sale" | null
+  statusTag?: string | null;
 }
 
 export interface CartItem {
@@ -41,7 +41,7 @@ export interface OrderItem {
 
 export interface Order {
   id: string;
-  customer: OrderCustomer | string; // string for legacy compat
+  customer: OrderCustomer | string;
   items: OrderItem[];
   itemCount: number;
   total: number;
@@ -71,10 +71,30 @@ const StoreContext = createContext<StoreContextType | null>(null);
 
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [products, setProducts] = useState<Product[]>([]);
-  const [cart, setCart] = useState<CartItem[]>([]);
-  const [wishlist, setWishlist] = useState<string[]>([]);
+  
+  // Initialize from LocalStorage
+  const [cart, setCart] = useState<CartItem[]>(() => {
+    const saved = localStorage.getItem("kbeauty-cart");
+    return saved ? JSON.parse(saved) : [];
+  });
+  
+  const [wishlist, setWishlist] = useState<string[]>(() => {
+    const saved = localStorage.getItem("kbeauty-wishlist");
+    return saved ? JSON.parse(saved) : [];
+  });
+  
   const [orders, setOrders] = useState<Order[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
+
+  // Save to LocalStorage whenever cart changes
+  useEffect(() => {
+    localStorage.setItem("kbeauty-cart", JSON.stringify(cart));
+  }, [cart]);
+
+  // Save to LocalStorage whenever wishlist changes
+  useEffect(() => {
+    localStorage.setItem("kbeauty-wishlist", JSON.stringify(wishlist));
+  }, [wishlist]);
 
   const addToCart = useCallback((product: Product, size?: string) => {
     setCart((prev) => {
@@ -147,29 +167,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   );
 }
 
-export const useStore = create((set) => ({
-  // Initialize from localStorage or empty array
-  cart: JSON.parse(localStorage.getItem("kbeauty-cart") || "[]"),
-  wishlist: JSON.parse(localStorage.getItem("kbeauty-wishlist") || "[]"),
-  
-  addToCart: (product) => set((state) => {
-    const newCart = [...state.cart, product];
-    localStorage.setItem("kbeauty-cart", JSON.stringify(newCart));
-    return { cart: newCart };
-  }),
-
-  addToWishlist: (product) => set((state) => {
-    const newWish = [...state.wishlist, product];
-    localStorage.setItem("kbeauty-wishlist", JSON.stringify(newWish));
-    return { wishlist: newWish };
-  }),
-
-  // Add a clear cart function for checkouts
-  clearCart: () => {
-    localStorage.removeItem("kbeauty-cart");
-    set({ cart: [] });
-  },
-}));
+export function useStore() {
+  const ctx = useContext(StoreContext);
+  if (!ctx) throw new Error("useStore must be used within StoreProvider");
+  return ctx;
 }
 
 export function formatLKR(amount: number): string {
