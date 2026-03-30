@@ -78,9 +78,14 @@ export default function Navigation() {
                       <button
                         key={item}
                         onClick={() => handleSubcategoryClick(cat, item)}
-                        className="w-full text-left px-5 py-2.5 text-gray-700 hover:bg-purple-50 hover:text-[#9966cc] transition-colors text-sm"
+                        className="w-full text-left px-5 py-2.5 text-gray-700 hover:bg-purple-50 hover:text-[#9966cc] transition-colors text-sm flex justify-between items-center"
                       >
                         {item}
+                        {(item === "NewJeans" || item === "Stray Kids" || item === "Skincare") && (
+                          <span className="bg-[#9966cc] text-white text-[9px] px-1.5 py-0.5 rounded-full font-bold uppercase">
+                            Hot
+                          </span>
+                        )}
                       </button>
                     ))}
                     <div className="border-t border-gray-100 mt-1 pt-1">
@@ -225,9 +230,14 @@ export default function Navigation() {
                         <button
                           key={item}
                           onClick={() => handleSubcategoryClick(cat, item)}
-                          className="block w-full text-left py-2 text-gray-600 hover:text-[#9966cc] text-sm"
+                          className="w-full text-left py-2 text-gray-600 hover:text-[#9966cc] text-sm flex justify-between items-center pr-4"
                         >
                           {item}
+                          {(item === "NewJeans" || item === "Stray Kids" || item === "Skincare") && (
+                            <span className="bg-[#9966cc] text-white text-[9px] px-1.5 py-0.5 rounded-full font-bold uppercase">
+                              Hot
+                            </span>
+                          )}
                         </button>
                       ))}
                     </div>

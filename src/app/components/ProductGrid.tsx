@@ -54,7 +54,7 @@ export default function ProductGrid() {
                 <img
                   src={product.image}
                   alt={product.name}
-                  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                  className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                 />
                 {product.badge && (
                   <div className="absolute top-3 left-3">

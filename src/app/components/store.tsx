@@ -147,10 +147,29 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   );
 }
 
-export function useStore() {
-  const ctx = useContext(StoreContext);
-  if (!ctx) throw new Error("useStore must be used within StoreProvider");
-  return ctx;
+export const useStore = create((set) => ({
+  // Initialize from localStorage or empty array
+  cart: JSON.parse(localStorage.getItem("kbeauty-cart") || "[]"),
+  wishlist: JSON.parse(localStorage.getItem("kbeauty-wishlist") || "[]"),
+  
+  addToCart: (product) => set((state) => {
+    const newCart = [...state.cart, product];
+    localStorage.setItem("kbeauty-cart", JSON.stringify(newCart));
+    return { cart: newCart };
+  }),
+
+  addToWishlist: (product) => set((state) => {
+    const newWish = [...state.wishlist, product];
+    localStorage.setItem("kbeauty-wishlist", JSON.stringify(newWish));
+    return { wishlist: newWish };
+  }),
+
+  // Add a clear cart function for checkouts
+  clearCart: () => {
+    localStorage.removeItem("kbeauty-cart");
+    set({ cart: [] });
+  },
+}));
 }
 
 export function formatLKR(amount: number): string {

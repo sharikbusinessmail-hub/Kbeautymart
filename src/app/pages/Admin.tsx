@@ -884,19 +884,23 @@ export default function Admin() {
               </div>
 
               {/* Order Items */}
-              {Array.isArray(viewingOrder.items) && (
-                <div className="bg-gray-50 rounded-lg p-4">
-                  <h4 className="font-semibold text-gray-900 mb-2">Order Items</h4>
-                  <div className="space-y-2">
-                    {viewingOrder.items.map((item: OrderItem, i: number) => (
-                      <div key={i} className="flex justify-between text-sm">
-                        <span>{item.name} x{item.quantity}</span>
-                        <span className="font-medium">{formatLKR(item.price * item.quantity)}</span>
-                      </div>
-                    ))}
+              <div className="bg-gray-50 rounded-lg p-4">
+                <h4 className="font-semibold text-gray-900 mb-2">Order Items</h4>
+                <div className="space-y-2">
+                  {Array.isArray(viewingOrder.items) ? (
+                    viewingOrder.items.map((item: any, i: number) => (
+                        <div key={i} className="flex justify-between text-sm">
+                          <span>{item.name} x{item.quantity}</span>
+                          <span className="font-medium">{formatLKR(item.price * item.quantity)}</span>
+                        </div>
+                      ))
+                    ) : (
+                     <p className="text-sm text-gray-500 italic">
+                       Item details are being processed. Total items: {getItemCount(viewingOrder)}
+                     </p>
+                   )}
                   </div>
                 </div>
-              )}
 
               {/* Total */}
               <div className="flex justify-between items-center pt-2 border-t font-bold text-lg">
