@@ -25,12 +25,23 @@ export default function Category() {
   const decodedSub = subcategory ? decodeURIComponent(subcategory) : "";
 
   const filtered = products.filter((p) => {
+    // 1. If the user is browsing the "K-Pop Groups" mega-menu
     if (decodedCategory === "K-Pop Groups") {
-      return decodedSub ? p.subcategory === decodedSub : p.category === "K-Pop";
+      if (decodedSub) {
+        // Show the product if the subcategory matches OR if the kpopGroup tag matches
+        return p.subcategory === decodedSub || p.kpopGroup === decodedSub;
+      }
+      // If viewing "All K-Pop Groups", show items in the K-Pop category OR any item with a group tag
+      return p.category === "K-Pop" || (p.kpopGroup && p.kpopGroup.trim() !== "");
     }
+
+    // 2. Normal Subcategory filtering (e.g., Clothing -> T-shirts)
     if (decodedSub) {
-      return p.subcategory === decodedSub;
+      // Ensure it matches both the category and subcategory so Beauty -> Masks doesn't show up in Decor -> Masks
+      return p.subcategory === decodedSub && p.category === decodedCategory;
     }
+
+    // 3. Normal Category filtering (e.g., View All Clothing)
     return p.category === decodedCategory;
   });
 
