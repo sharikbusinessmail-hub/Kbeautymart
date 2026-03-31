@@ -555,7 +555,7 @@ export default function Admin() {
                 <button
                   key={vol}
                   type="button"
-                  onClick={() => toggleSize(vol, target)} // We save volumes into the sizes array so the storefront can read it universally
+                  onClick={() => toggleSize(vol, target)} 
                   className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${
                     (product.sizes || []).includes(vol)
                       ? "bg-[#9966cc] text-white border-[#9966cc]"
@@ -569,6 +569,8 @@ export default function Admin() {
           </div>
         </>
       )}
+    </div> {/* <--- ADD THIS MISSING DIV */}
+  );     {/* <--- ADD THIS MISSING PARENTHESIS/SEMICOLON */}
 
   if (loading) {
     return (
