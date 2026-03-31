@@ -1,11 +1,21 @@
 import { createContext, useContext, useState, useCallback, useEffect, ReactNode } from "react";
 
+export interface ProductVariant {
+  sku: string;
+  label: string;
+  price: number;
+  stock_quantity: number;
+}
+
 export interface Product {
   id: string;
   name: string;
   category: string;
   subcategory: string;
-  price: number;
+  price: number; // Fallback price
+  base_price?: number; // Starting price for display
+  options_type?: string; // e.g., "Size", "Volume"
+  variants?: ProductVariant[];
   image: string;
   badge?: string | null;
   stock: number;
@@ -19,10 +29,9 @@ export interface Product {
 }
 
 export interface CartItem {
-  cartItemId: string; // NEW: Unique ID for the specific variant in the cart
   product: Product;
   quantity: number;
-  selectedSize?: string;
+  selectedVariant?: ProductVariant;
 }
 
 export interface OrderCustomer {
@@ -37,7 +46,7 @@ export interface OrderItem {
   name: string;
   quantity: number;
   price: number;
-  selectedSize?: string;
+  selectedVariant?: ProductVariant;
 }
 
 export interface Order {
@@ -54,9 +63,9 @@ interface StoreContextType {
   products: Product[];
   setProducts: (p: Product[]) => void;
   cart: CartItem[];
-  addToCart: (product: Product, size?: string) => void;
-  removeFromCart: (cartItemId: string) => void; // UPDATED to require cartItemId
-  updateQuantity: (cartItemId: string, qty: number) => void; // UPDATED to require cartItemId
+  addToCart: (product: Product, variant?: ProductVariant) => void;
+  removeFromCart: (productId: string, variantSku?: string) => void;
+  updateQuantity: (productId: string, qty: number, variantSku?: string) => void;
   clearCart: () => void;
   cartCount: number;
   cartTotal: number;
@@ -73,23 +82,10 @@ const StoreContext = createContext<StoreContextType | null>(null);
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [products, setProducts] = useState<Product[]>([]);
   
-  // Initialize from LocalStorage with a failsafe for old cart items
+  // Initialize from LocalStorage
   const [cart, setCart] = useState<CartItem[]>(() => {
     const saved = localStorage.getItem("kbeauty-cart");
-    if (!saved) return [];
-    
-    try {
-      const parsed = JSON.parse(saved);
-      // Map through old saved items and ensure they have a cartItemId
-      // This prevents the app from crashing for returning users
-      return parsed.map((item: any) => ({
-        ...item,
-        cartItemId: item.cartItemId || (item.selectedSize ? `${item.product.id}-${item.selectedSize}` : item.product.id)
-      }));
-    } catch (e) {
-      console.error("Failed to parse cart", e);
-      return [];
-    }
+    return saved ? JSON.parse(saved) : [];
   });
   
   const [wishlist, setWishlist] = useState<string[]>(() => {
@@ -110,38 +106,42 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     localStorage.setItem("kbeauty-wishlist", JSON.stringify(wishlist));
   }, [wishlist]);
 
-  // UPDATED: addToCart now creates a unique cartItemId
-  const addToCart = useCallback((product: Product, size?: string) => {
+  const addToCart = useCallback((product: Product, variant?: ProductVariant) => {
     setCart((prev) => {
-      // Create a unique ID. E.g., "bts-shirt-M" or just "cosrx-snail" if no size.
-      const cartItemId = size ? `${product.id}-${size}` : product.id;
-      
-      const existing = prev.find((item) => item.cartItemId === cartItemId);
+      // Check if the exact product AND exact variant are already in the cart
+      const existing = prev.find((item) => 
+        item.product.id === product.id && 
+        item.selectedVariant?.sku === variant?.sku
+      );
       
       if (existing) {
         return prev.map((item) =>
-          item.cartItemId === cartItemId
+          item.product.id === product.id && item.selectedVariant?.sku === variant?.sku
             ? { ...item, quantity: item.quantity + 1 }
             : item
         );
       }
-      return [...prev, { cartItemId, product, quantity: 1, selectedSize: size }];
+      return [...prev, { product, quantity: 1, selectedVariant: variant }];
     });
   }, []);
 
-  // UPDATED: removeFromCart now uses cartItemId
-  const removeFromCart = useCallback((cartItemId: string) => {
-    setCart((prev) => prev.filter((item) => item.cartItemId !== cartItemId));
+  const removeFromCart = useCallback((productId: string, variantSku?: string) => {
+    setCart((prev) => prev.filter((item) => 
+      !(item.product.id === productId && item.selectedVariant?.sku === variantSku)
+    ));
   }, []);
 
-  // UPDATED: updateQuantity now uses cartItemId
-  const updateQuantity = useCallback((cartItemId: string, qty: number) => {
+  const updateQuantity = useCallback((productId: string, qty: number, variantSku?: string) => {
     if (qty <= 0) {
-      setCart((prev) => prev.filter((item) => item.cartItemId !== cartItemId));
+      setCart((prev) => prev.filter((item) => 
+        !(item.product.id === productId && item.selectedVariant?.sku === variantSku)
+      ));
     } else {
       setCart((prev) =>
         prev.map((item) =>
-          item.cartItemId === cartItemId ? { ...item, quantity: qty } : item
+          item.product.id === productId && item.selectedVariant?.sku === variantSku
+            ? { ...item, quantity: qty } 
+            : item
         )
       );
     }
@@ -150,8 +150,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const clearCart = useCallback(() => setCart([]), []);
 
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
+  
+  // Calculate total using variant price if it exists, otherwise fallback to base product price
   const cartTotal = cart.reduce(
-    (sum, item) => sum + item.product.price * item.quantity,
+    (sum, item) => sum + (item.selectedVariant?.price || item.product.price) * item.quantity,
     0
   );
 
