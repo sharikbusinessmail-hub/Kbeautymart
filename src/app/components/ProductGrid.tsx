@@ -1,7 +1,7 @@
 import { Heart, ShoppingCart, Loader2, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useStore, Product, formatLKR } from "./store";
-import { fetchProducts } from "../api"; // Make sure this path is correct for your setup
+import { fetchProducts } from "./api";
 import { toast } from "sonner";
 
 export default function ProductGrid() {
