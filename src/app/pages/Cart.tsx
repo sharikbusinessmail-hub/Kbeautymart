@@ -35,7 +35,8 @@ export default function Cart() {
         <div className="space-y-4">
           {cart.map((item) => (
             <div
-              key={item.product.id}
+              // UPDATED: Use the unique cartItemId as the React key
+              key={item.cartItemId} 
               className="flex items-center gap-4 bg-gray-50 rounded-xl p-4"
             >
               <img
@@ -46,21 +47,26 @@ export default function Cart() {
               <div className="flex-1 min-w-0">
                 <h3 className="font-semibold text-gray-900 truncate">{item.product.name}</h3>
                 <p className="text-sm text-gray-500">{item.product.category}</p>
+                {/* Already beautifully handled: Shows the size if it exists */}
                 {item.selectedSize && (
-                  <p className="text-xs text-gray-500">Size: {item.selectedSize}</p>
+                  <p className="text-sm font-medium text-[#9966cc]">
+                    Variant: {item.selectedSize}
+                  </p>
                 )}
-                <p className="font-bold text-[#9966cc]">{formatLKR(item.product.price)}</p>
+                <p className="font-bold text-gray-900">{formatLKR(item.product.price)}</p>
               </div>
               <div className="flex items-center gap-2">
                 <button
-                  onClick={() => updateQuantity(item.product.id, item.quantity - 1)}
+                  // UPDATED: Target the specific variant ID
+                  onClick={() => updateQuantity(item.cartItemId, item.quantity - 1)}
                   className="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center hover:bg-gray-100"
                 >
                   <Minus className="w-4 h-4" />
                 </button>
                 <span className="w-8 text-center font-medium">{item.quantity}</span>
                 <button
-                  onClick={() => updateQuantity(item.product.id, item.quantity + 1)}
+                  // UPDATED: Target the specific variant ID
+                  onClick={() => updateQuantity(item.cartItemId, item.quantity + 1)}
                   className="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center hover:bg-gray-100"
                 >
                   <Plus className="w-4 h-4" />
@@ -70,7 +76,8 @@ export default function Cart() {
                 {formatLKR(item.product.price * item.quantity)}
               </p>
               <button
-                onClick={() => removeFromCart(item.product.id)}
+                // UPDATED: Target the specific variant ID for deletion
+                onClick={() => removeFromCart(item.cartItemId)}
                 className="p-2 text-red-500 hover:bg-red-50 rounded-lg"
               >
                 <Trash2 className="w-5 h-5" />

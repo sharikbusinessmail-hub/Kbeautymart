@@ -19,6 +19,7 @@ export interface Product {
 }
 
 export interface CartItem {
+  cartItemId: string; // NEW: Unique ID for the specific variant in the cart
   product: Product;
   quantity: number;
   selectedSize?: string;
@@ -54,8 +55,8 @@ interface StoreContextType {
   setProducts: (p: Product[]) => void;
   cart: CartItem[];
   addToCart: (product: Product, size?: string) => void;
-  removeFromCart: (productId: string) => void;
-  updateQuantity: (productId: string, qty: number) => void;
+  removeFromCart: (cartItemId: string) => void; // UPDATED to require cartItemId
+  updateQuantity: (cartItemId: string, qty: number) => void; // UPDATED to require cartItemId
   clearCart: () => void;
   cartCount: number;
   cartTotal: number;
@@ -72,10 +73,23 @@ const StoreContext = createContext<StoreContextType | null>(null);
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [products, setProducts] = useState<Product[]>([]);
   
-  // Initialize from LocalStorage
+  // Initialize from LocalStorage with a failsafe for old cart items
   const [cart, setCart] = useState<CartItem[]>(() => {
     const saved = localStorage.getItem("kbeauty-cart");
-    return saved ? JSON.parse(saved) : [];
+    if (!saved) return [];
+    
+    try {
+      const parsed = JSON.parse(saved);
+      // Map through old saved items and ensure they have a cartItemId
+      // This prevents the app from crashing for returning users
+      return parsed.map((item: any) => ({
+        ...item,
+        cartItemId: item.cartItemId || (item.selectedSize ? `${item.product.id}-${item.selectedSize}` : item.product.id)
+      }));
+    } catch (e) {
+      console.error("Failed to parse cart", e);
+      return [];
+    }
   });
   
   const [wishlist, setWishlist] = useState<string[]>(() => {
@@ -96,31 +110,38 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     localStorage.setItem("kbeauty-wishlist", JSON.stringify(wishlist));
   }, [wishlist]);
 
+  // UPDATED: addToCart now creates a unique cartItemId
   const addToCart = useCallback((product: Product, size?: string) => {
     setCart((prev) => {
-      const existing = prev.find((item) => item.product.id === product.id);
+      // Create a unique ID. E.g., "bts-shirt-M" or just "cosrx-snail" if no size.
+      const cartItemId = size ? `${product.id}-${size}` : product.id;
+      
+      const existing = prev.find((item) => item.cartItemId === cartItemId);
+      
       if (existing) {
         return prev.map((item) =>
-          item.product.id === product.id
+          item.cartItemId === cartItemId
             ? { ...item, quantity: item.quantity + 1 }
             : item
         );
       }
-      return [...prev, { product, quantity: 1, selectedSize: size }];
+      return [...prev, { cartItemId, product, quantity: 1, selectedSize: size }];
     });
   }, []);
 
-  const removeFromCart = useCallback((productId: string) => {
-    setCart((prev) => prev.filter((item) => item.product.id !== productId));
+  // UPDATED: removeFromCart now uses cartItemId
+  const removeFromCart = useCallback((cartItemId: string) => {
+    setCart((prev) => prev.filter((item) => item.cartItemId !== cartItemId));
   }, []);
 
-  const updateQuantity = useCallback((productId: string, qty: number) => {
+  // UPDATED: updateQuantity now uses cartItemId
+  const updateQuantity = useCallback((cartItemId: string, qty: number) => {
     if (qty <= 0) {
-      setCart((prev) => prev.filter((item) => item.product.id !== productId));
+      setCart((prev) => prev.filter((item) => item.cartItemId !== cartItemId));
     } else {
       setCart((prev) =>
         prev.map((item) =>
-          item.product.id === productId ? { ...item, quantity: qty } : item
+          item.cartItemId === cartItemId ? { ...item, quantity: qty } : item
         )
       );
     }
