@@ -1,14 +1,14 @@
 import { Heart, ShoppingCart, Loader2, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useStore, Product, formatLKR } from "./store";
-import { fetchProducts } from "./api";
+import { fetchProducts } from "../api"; // Make sure this path is correct for your setup
 import { toast } from "sonner";
 
 export default function ProductGrid() {
   const { products, setProducts, addToCart, wishlist, toggleWishlist } = useStore();
   const [loading, setLoading] = useState(true);
 
-  // NEW: State to control the popup modal
+  // State to control the popup modal
   const [activeModalProduct, setActiveModalProduct] = useState<Product | null>(null);
   const [selectedSize, setSelectedSize] = useState<string>("");
   const [specialRequest, setSpecialRequest] = useState<string>("");
@@ -23,15 +23,14 @@ export default function ProductGrid() {
       .finally(() => setLoading(false));
   }, [setProducts]);
 
-  // UPDATED: Check if product needs the modal before adding
-  // FIX: ALWAYS open the modal so users can leave special requests!
+  // ALWAYS open the modal so users can leave special requests
   const handleInitialClick = (product: Product) => {
     setSelectedSize("");
     setSpecialRequest("");
     setActiveModalProduct(product);
   };
 
-  // FIX: Only block submission if the product actually has sizes to choose from
+  // Handle the final add from inside the modal
   const handleModalSubmit = () => {
     if (!activeModalProduct) return;
     
@@ -43,27 +42,11 @@ export default function ProductGrid() {
       return;
     }
 
-    // Add to cart! 
-    // (If you want to pass the special request to the cart, you'll need to update addToCart in store.ts to accept it)
+    // Add to cart
     addToCart(activeModalProduct, selectedSize);
     
     const sizeText = selectedSize ? ` (${selectedSize})` : "";
     toast.success(`${activeModalProduct.name}${sizeText} added to cart!`);
-    setActiveModalProduct(null); // Close modal
-  };
-
-  // NEW: Handle the final add from inside the modal
-  const handleModalSubmit = () => {
-    if (!activeModalProduct) return;
-    if (!selectedSize) {
-      toast.error("Please select a size/volume!");
-      return;
-    }
-
-    // Pass the selected size to your store
-    // Note: If you want to save the 'specialRequest', you will need to add that to your CartItem interface in store.ts!
-    addToCart(activeModalProduct, selectedSize);
-    toast.success(`${activeModalProduct.name} (${selectedSize}) added to cart!`);
     setActiveModalProduct(null); // Close modal
   };
 
@@ -112,7 +95,6 @@ export default function ProductGrid() {
 
                 <div className="absolute bottom-0 left-0 right-0 translate-y-full group-hover:translate-y-0 transition-transform duration-300">
                   <button
-                    // Trigger the check instead of instant add
                     onClick={() => handleInitialClick(product)}
                     className="w-full bg-[#9966cc] text-white py-3 font-semibold hover:bg-[#7744aa] transition-colors flex items-center justify-center gap-2"
                   >
