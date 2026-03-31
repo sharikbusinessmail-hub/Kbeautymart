@@ -1,4 +1,4 @@
-import { Heart, ShoppingCart, Loader2 } from "lucide-react";
+import { Heart, ShoppingCart, Loader2, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useStore, Product, formatLKR } from "./store";
 import { fetchProducts } from "./api";
@@ -7,16 +7,15 @@ import { toast } from "sonner";
 export default function ProductGrid() {
   const { products, setProducts, addToCart, wishlist, toggleWishlist } = useStore();
   const [loading, setLoading] = useState(true);
-  
-  // NEW: Track the selected variant SKU for each product card in the grid
-  // e.g., { "cosrx-snail-mucin": "SNAIL-50", "bts-shirt": "SHIRT-M" }
-  const [selectedVariants, setSelectedVariants] = useState<Record<string, string>>({});
+
+  // NEW: State to control the popup modal
+  const [activeModalProduct, setActiveModalProduct] = useState<Product | null>(null);
+  const [selectedSize, setSelectedSize] = useState<string>("");
+  const [specialRequest, setSpecialRequest] = useState<string>("");
 
   useEffect(() => {
     fetchProducts()
-      .then((data) => {
-        setProducts(data);
-      })
+      .then((data) => setProducts(data))
       .catch((err) => {
         console.error("Failed to load products:", err);
         toast.error("Failed to load products");
@@ -24,27 +23,33 @@ export default function ProductGrid() {
       .finally(() => setLoading(false));
   }, [setProducts]);
 
-  // UPDATED: Now handles both simple products and variant products
-  const handleAddToCart = (product: Product) => {
-    // If the product has variants, enforce selection
-    if (product.variants && product.variants.length > 0) {
-      const selectedSku = selectedVariants[product.id];
-      
-      if (!selectedSku) {
-        toast.error(`Please select an option for ${product.name}`);
-        return;
-      }
-
-      const activeVariant = product.variants.find(v => v.sku === selectedSku);
-      
-      // Pass the selected variant along with the product to your store
-      addToCart(product, activeVariant); 
-      toast.success(`${product.name} (${activeVariant?.label}) added to cart!`);
+  // UPDATED: Check if product needs the modal before adding
+  const handleInitialClick = (product: Product) => {
+    if (product.sizes && product.sizes.length > 0) {
+      // Open the modal, reset previous selections
+      setSelectedSize("");
+      setSpecialRequest("");
+      setActiveModalProduct(product);
     } else {
-      // Standard product with no variants
+      // No sizes needed, add directly
       addToCart(product);
       toast.success(`${product.name} added to cart!`);
     }
+  };
+
+  // NEW: Handle the final add from inside the modal
+  const handleModalSubmit = () => {
+    if (!activeModalProduct) return;
+    if (!selectedSize) {
+      toast.error("Please select a size/volume!");
+      return;
+    }
+
+    // Pass the selected size to your store
+    // Note: If you want to save the 'specialRequest', you will need to add that to your CartItem interface in store.ts!
+    addToCart(activeModalProduct, selectedSize);
+    toast.success(`${activeModalProduct.name} (${selectedSize}) added to cart!`);
+    setActiveModalProduct(null); // Close modal
   };
 
   if (loading) {
@@ -67,102 +72,126 @@ export default function ProductGrid() {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          {products.slice(0, 8).map((product) => {
-            // Determine the price to display (updates if they select a more expensive variant)
-            const activeSku = selectedVariants[product.id];
-            const activeVariant = product.variants?.find(v => v.sku === activeSku);
-            const displayPrice = activeVariant ? activeVariant.price : (product.base_price || product.price);
-
-            return (
-              <div
-                key={product.id}
-                className="bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 group"
-              >
-                <div className="relative aspect-square overflow-hidden bg-gray-100">
-                  <img
-                    src={product.image}
-                    alt={product.name}
-                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                  />
-                  {product.badge && (
-                    <div className="absolute top-3 left-3">
-                      <span
-                        className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                          product.badge === "Sale"
-                            ? "bg-red-500 text-white"
-                            : product.badge === "New"
-                            ? "bg-green-500 text-white"
-                            : product.badge === "Best Seller"
-                            ? "bg-[#9966cc] text-white"
-                            : "bg-blue-500 text-white"
-                        }`}
-                      >
-                        {product.badge}
-                      </span>
-                    </div>
-                  )}
-                  <button
-                    onClick={() => toggleWishlist(product.id)}
-                    className="absolute top-3 right-3 w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-md hover:scale-110 transition-all z-10"
-                  >
-                    <Heart
-                      className={`w-5 h-5 ${
-                        wishlist.includes(product.id)
-                          ? "fill-red-500 text-red-500"
-                          : "text-gray-600"
-                      }`}
-                    />
-                  </button>
-
-                  {/* UPDATED HOVER OVERLAY: Now includes variant selector */}
-                  <div className="absolute bottom-0 left-0 right-0 translate-y-full group-hover:translate-y-0 transition-transform duration-300 bg-white/95 backdrop-blur-sm shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
-                    
-                    {/* Render dropdown ONLY if product has variants */}
-                    {product.variants && product.variants.length > 0 && (
-                      <div className="px-3 py-2 border-b border-gray-100">
-                        <select
-                          className="w-full text-sm p-1.5 bg-gray-50 border border-gray-200 rounded text-gray-700 outline-none focus:border-[#9966cc]"
-                          value={selectedVariants[product.id] || ""}
-                          onChange={(e) => setSelectedVariants({
-                            ...selectedVariants,
-                            [product.id]: e.target.value
-                          })}
-                        >
-                          <option value="" disabled>Select {product.options_type || "Option"}</option>
-                          {product.variants.map((v) => (
-                            <option key={v.sku} value={v.sku} disabled={v.stock_quantity === 0}>
-                              {v.label} {v.stock_quantity === 0 ? "(Out of Stock)" : ""}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    )}
-
-                    <button
-                      onClick={() => handleAddToCart(product)}
-                      // Disable button if variants exist but none are selected
-                      disabled={product.variants?.length > 0 && !selectedVariants[product.id]}
-                      className="w-full bg-[#9966cc] text-white py-3 font-semibold hover:bg-[#7744aa] disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
-                    >
-                      <ShoppingCart className="w-5 h-5" />
-                      Quick Add
-                    </button>
-                  </div>
-                </div>
+          {products.slice(0, 8).map((product) => (
+            <div
+              key={product.id}
+              className="bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 group"
+            >
+              <div className="relative aspect-square overflow-hidden bg-gray-100">
+                <img
+                  src={product.image}
+                  alt={product.name}
+                  className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                />
                 
-                <div className="p-4">
-                  <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">
-                    {product.category}
-                  </p>
-                  <h3 className="font-semibold text-gray-900 mb-2 line-clamp-2">{product.name}</h3>
-                  {/* Dynamic Price Display */}
-                  <p className="text-lg font-bold text-[#9966cc]">{formatLKR(displayPrice)}</p>
+                <button
+                  onClick={() => toggleWishlist(product.id)}
+                  className="absolute top-3 right-3 w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-md hover:scale-110 transition-all z-10"
+                >
+                  <Heart
+                    className={`w-5 h-5 ${
+                      wishlist.includes(product.id) ? "fill-red-500 text-red-500" : "text-gray-600"
+                    }`}
+                  />
+                </button>
+
+                <div className="absolute bottom-0 left-0 right-0 translate-y-full group-hover:translate-y-0 transition-transform duration-300">
+                  <button
+                    // Trigger the check instead of instant add
+                    onClick={() => handleInitialClick(product)}
+                    className="w-full bg-[#9966cc] text-white py-3 font-semibold hover:bg-[#7744aa] transition-colors flex items-center justify-center gap-2"
+                  >
+                    <ShoppingCart className="w-5 h-5" />
+                    Quick Add
+                  </button>
                 </div>
               </div>
-            );
-          })}
+              
+              <div className="p-4">
+                <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">
+                  {product.category}
+                </p>
+                <h3 className="font-semibold text-gray-900 mb-2 line-clamp-2">{product.name}</h3>
+                <p className="text-lg font-bold text-[#9966cc]">{formatLKR(product.price)}</p>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
+
+      {/* --- THE MODAL POPUP --- */}
+      {activeModalProduct && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl relative">
+            
+            {/* Close Button */}
+            <button 
+              onClick={() => setActiveModalProduct(null)}
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-900"
+            >
+              <X className="w-6 h-6" />
+            </button>
+
+            {/* Modal Header */}
+            <div className="flex gap-4 mb-6 border-b pb-4">
+              <img 
+                src={activeModalProduct.image} 
+                alt={activeModalProduct.name} 
+                className="w-20 h-20 rounded-lg object-cover"
+              />
+              <div>
+                <h3 className="font-bold text-gray-900 line-clamp-2">{activeModalProduct.name}</h3>
+                <p className="text-[#9966cc] font-semibold">{formatLKR(activeModalProduct.price)}</p>
+              </div>
+            </div>
+
+            {/* Size/Volume Selection */}
+            <div className="mb-4">
+              <label className="block text-sm font-semibold text-gray-900 mb-2">
+                Select Option <span className="text-red-500">*</span>
+              </label>
+              <div className="flex flex-wrap gap-2">
+                {activeModalProduct.sizes?.map((size) => (
+                  <button
+                    key={size}
+                    onClick={() => setSelectedSize(size)}
+                    className={`px-4 py-2 rounded-lg border text-sm font-medium transition-colors ${
+                      selectedSize === size 
+                        ? "bg-[#9966cc] border-[#9966cc] text-white" 
+                        : "bg-white border-gray-300 text-gray-700 hover:border-[#9966cc]"
+                    }`}
+                  >
+                    {size}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Special Requests */}
+            <div className="mb-6">
+              <label className="block text-sm font-semibold text-gray-900 mb-2">
+                Special Requests (Optional)
+              </label>
+              <textarea
+                value={specialRequest}
+                onChange={(e) => setSpecialRequest(e.target.value)}
+                placeholder="e.g., Needs extra bubble wrap, specific expiration date..."
+                className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:outline-none focus:border-[#9966cc] focus:ring-1 focus:ring-[#9966cc]"
+                rows={2}
+              />
+            </div>
+
+            {/* Submit Button */}
+            <button
+              onClick={handleModalSubmit}
+              className="w-full bg-[#9966cc] text-white py-3 rounded-lg font-bold hover:bg-[#7744aa] transition-colors flex items-center justify-center gap-2"
+            >
+              <ShoppingCart className="w-5 h-5" />
+              Add to Cart - {formatLKR(activeModalProduct.price)}
+            </button>
+          </div>
+        </div>
+      )}
     </section>
   );
 }

@@ -78,6 +78,9 @@ const STATUS_TAG_OPTIONS = [null, "Clearance", "Limited Stock", "Sale"];
 const SIZE_OPTIONS = ["XS", "S", "M", "L", "XL", "XXL"];
 const SKIN_TYPES = ["", "All Skin Types", "Dry Skin", "Oily Skin", "Combination Skin", "Sensitive Skin"];
 
+// NEW: Standardized volume options for beauty products
+const VOLUME_OPTIONS = ["", "5ml", "10ml", "15ml", "30ml", "50ml", "100ml", "150ml", "200ml", "250ml", "500ml"];
+
 const emptyProduct: Omit<Product, "id"> = {
   name: "",
   category: "K-Pop",
@@ -133,7 +136,6 @@ function SalesChart({ data }: { data: { month: string; sales: number }[] }) {
   const padding = { top: 20, right: 20, bottom: 40, left: 70 };
   const chartW = width - padding.left - padding.right;
   const chartH = height - padding.top - padding.bottom;
-
   const maxSales = Math.max(...data.map((d) => d.sales));
   const minSales = Math.min(...data.map((d) => d.sales));
   const yMax = Math.ceil(maxSales / 500000) * 500000;
@@ -544,14 +546,22 @@ export default function Admin() {
               {SKIN_TYPES.map((s) => <option key={s} value={s}>{s || "Not specified"}</option>)}
             </select>
           </div>
+          
+          {/* UPDATED SECTION: Volume is now a select dropdown */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Volume / Size</label>
-            <input
-              placeholder="e.g. 50ml, 100ml"
+            <select
               value={product.volume || ""}
               onChange={(e) => setProduct({ ...product, volume: e.target.value })}
               className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#9966cc]"
-            />
+            >
+              <option value="" disabled>Select a volume</option>
+              {VOLUME_OPTIONS.map((vol) => (
+                <option key={vol} value={vol}>
+                  {vol || "None"}
+                </option>
+              ))}
+            </select>
           </div>
         </>
       )}
@@ -831,7 +841,7 @@ export default function Admin() {
             </div>
             {renderProductForm(editingProduct, (p: Product) => setEditingProduct(p), "edit")}
             <button
-              onClick={handleSaveEdit}
+               onClick={handleSaveEdit}
               className="w-full mt-4 bg-[#9966cc] text-white py-2.5 rounded-lg font-semibold hover:bg-[#7744aa]"
             >
               Save Changes
@@ -854,7 +864,7 @@ export default function Admin() {
             <button
               onClick={handleAddProduct}
               className="w-full mt-4 bg-[#9966cc] text-white py-2.5 rounded-lg font-semibold hover:bg-[#7744aa]"
-            >
+             >
               Add Product
             </button>
           </div>
@@ -876,7 +886,7 @@ export default function Admin() {
               <div className="bg-gray-50 rounded-lg p-4">
                 <h4 className="font-semibold text-gray-900 mb-2">Customer Information</h4>
                 <div className="space-y-1 text-sm">
-                  <p><span className="text-gray-500">Name:</span> {getCustomerDetail(viewingOrder.customer, "name")}</p>
+                   <p><span className="text-gray-500">Name:</span> {getCustomerDetail(viewingOrder.customer, "name")}</p>
                   <p><span className="text-gray-500">Email:</span> {getCustomerDetail(viewingOrder.customer, "email") || "N/A"}</p>
                   <p><span className="text-gray-500">Phone:</span> {getCustomerDetail(viewingOrder.customer, "phone") || "N/A"}</p>
                   <p><span className="text-gray-500">Address:</span> {getCustomerDetail(viewingOrder.customer, "address") || "N/A"}</p>
@@ -900,7 +910,7 @@ export default function Admin() {
                      </p>
                    )}
                   </div>
-                </div>
+               </div>
 
               {/* Total */}
               <div className="flex justify-between items-center pt-2 border-t font-bold text-lg">
@@ -908,7 +918,7 @@ export default function Admin() {
                 <span className="text-[#9966cc]">{formatLKR(viewingOrder.total)}</span>
               </div>
 
-              <div className="flex justify-between items-center text-sm">
+               <div className="flex justify-between items-center text-sm">
                 <span className="text-gray-500">Status: {viewingOrder.status}</span>
                 <span className="text-gray-500">Date: {viewingOrder.date}</span>
               </div>
