@@ -59,7 +59,7 @@ export default function Navigation() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           <Link to="/" className="text-2xl font-bold text-[#9966cc] shrink-0">
-            K·BEAUTY
+            K·BEAUTY MART
           </Link>
 
           {/* Desktop Menu */}

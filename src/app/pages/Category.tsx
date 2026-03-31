@@ -25,13 +25,12 @@ export default function Category() {
   const decodedSub = subcategory ? decodeURIComponent(subcategory) : "";
 
   const filtered = products.filter((p) => {
-    // Safely grab the strings and make them lowercase for easy comparing
     const pCat = p.category || "";
     const pSub = (p.subcategory || "").toLowerCase();
     const pGroup = (p.kpopGroup || "").toLowerCase();
     const searchSub = decodedSub ? decodedSub.toLowerCase() : "";
 
-    // 1. K-Pop Groups Mega-Menu
+    // 1. K-Pop Groups Mega-Menu (Shows if subcategory OR kpopGroup tag matches)
     if (decodedCategory === "K-Pop Groups") {
       if (searchSub) {
         return pSub === searchSub || pGroup === searchSub;
@@ -41,7 +40,11 @@ export default function Category() {
 
     // 2. Normal Subcategory (e.g., Clothing -> T-shirts)
     if (searchSub) {
-      return pSub === searchSub && pCat === decodedCategory;
+      // This smart check allows "T-shirt" to match "T-shirts" by ignoring the 's' at the end
+      const cleanSearch = searchSub.replace(/s$/, ""); 
+      const subcategoryMatches = pSub.includes(cleanSearch) || searchSub.includes(pSub);
+      
+      return subcategoryMatches && pCat === decodedCategory;
     }
 
     // 3. Normal Category (e.g., View All Clothing)

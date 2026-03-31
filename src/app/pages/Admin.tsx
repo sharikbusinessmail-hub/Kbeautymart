@@ -575,7 +575,7 @@ export default function Admin() {
         <div className="flex items-center gap-8">
           <div className="flex items-center gap-2">
             <Package className="w-6 h-6 text-[#9966cc]" />
-            <span className="text-xl font-bold">K·BEAUTY</span>
+            <span className="text-xl font-bold">K·BEAUTY MART</span>
             <span className="text-gray-400 text-sm ml-1">Admin</span>
           </div>
           <nav className="hidden sm:flex items-center gap-4">
