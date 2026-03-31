@@ -569,8 +569,8 @@ export default function Admin() {
           </div>
         </>
       )}
-    </div> {/* <--- ADD THIS MISSING DIV */}
-  );     {/* <--- ADD THIS MISSING PARENTHESIS/SEMICOLON */}
+    </div>
+  );
 
   if (loading) {
     return (
