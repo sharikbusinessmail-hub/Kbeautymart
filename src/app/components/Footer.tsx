@@ -8,9 +8,9 @@ export default function Footer() {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
           {/* Brand */}
           <div>
-            <h3 className="text-2xl font-bold text-[#9966cc] mb-4">K•BEAUTY</h3>
+            <h3 className="text-2xl font-bold text-[#9966cc] mb-4">K•BEAUTY MART</h3>
             <p className="text-gray-400 text-sm">
-              Your ultimate destination for K-Pop merchandise and Korean beauty products.
+              Your ultimate destination for K-Pop merchandise and Korean beauty products in Sri Lanka.
             </p>
           </div>
 
@@ -60,7 +60,7 @@ export default function Footer() {
         {/* Bottom */}
         <div className="border-t border-gray-800 pt-8 flex flex-col md:flex-row justify-between items-center gap-4">
           <p className="text-sm text-gray-400">
-            © 2026 K•BEAUTY. All rights reserved.
+            © 2026 K•BEAUTY MART. All rights reserved.
           </p>
           
           {/* Social Links */}
