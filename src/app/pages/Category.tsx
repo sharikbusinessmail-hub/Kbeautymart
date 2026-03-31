@@ -6,6 +6,8 @@ import Footer from "../components/Footer";
 import { useStore, Product, formatLKR } from "../components/store";
 import { fetchProducts } from "../components/api";
 import { toast } from "sonner";
+import { Helmet } from 'react-helmet-async';
+// ... your other imports
 
 export default function Category() {
   const { category, subcategory } = useParams();
