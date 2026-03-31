@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Link } from "react-router";
+import { Link } from "react-router"; // Fixed: react-router-dom is standard, but keeping your import
 import {
   Package,
   ShoppingCart,
@@ -13,12 +13,19 @@ import {
   DollarSign,
   Box,
   Upload,
-  Image as ImageIcon,
   Eye,
 } from "lucide-react";
 import { fetchProducts, fetchOrders, createProduct, updateProduct, deleteProduct, updateOrder, uploadImage } from "../components/api";
 import { toast, Toaster } from "sonner";
 import { formatLKR } from "../components/store";
+
+// --- NEW: Added ProductVariant interface ---
+export interface ProductVariant {
+  sku: string;
+  label: string;
+  price: number;
+  stock_quantity: number;
+}
 
 interface Product {
   id: string;
@@ -27,6 +34,9 @@ interface Product {
   subcategory: string;
   stock: number;
   price: number;
+  base_price?: number; // Added
+  options_type?: string; // Added (e.g., "Size", "Volume", "Color")
+  variants?: ProductVariant[]; // Added array of variants
   image: string;
   badge?: string | null;
   kpopGroup?: string;
@@ -36,6 +46,7 @@ interface Product {
   skinType?: string;
   volume?: string;
   statusTag?: string | null;
+  description?: string;
 }
 
 interface OrderCustomer {
@@ -75,26 +86,25 @@ const CATEGORIES = ["K-Pop", "Clothing", "Beauty", "Decor", "Accessories"];
 const KPOP_GROUPS = ["", "BTS", "BLACKPINK", "Stray Kids", "TWICE", "NewJeans", "SEVENTEEN", "ENHYPEN", "TXT", "aespa", "LE SSERAFIM"];
 const BADGE_OPTIONS = [null, "New", "Sale", "Best Seller", "Trending"];
 const STATUS_TAG_OPTIONS = [null, "Clearance", "Limited Stock", "Sale"];
-const SIZE_OPTIONS = ["XS", "S", "M", "L", "XL", "XXL"];
 const SKIN_TYPES = ["", "All Skin Types", "Dry Skin", "Oily Skin", "Combination Skin", "Sensitive Skin"];
 
-// NEW: Standardized volume options for beauty products
-const VOLUME_OPTIONS = ["", "5ml", "10ml", "15ml", "30ml", "50ml", "100ml", "150ml", "200ml", "250ml", "500ml"];
-
+// --- UPDATED: Empty product now initializes variants array ---
 const emptyProduct: Omit<Product, "id"> = {
   name: "",
   category: "K-Pop",
   subcategory: "",
   stock: 0,
   price: 0,
+  base_price: 0,
+  options_type: "",
+  variants: [],
   image: "",
   badge: null,
   kpopGroup: "",
   brand: "",
-  sizes: [],
+  description: "",
   material: "",
   skinType: "",
-  volume: "",
   statusTag: null,
 };
 
@@ -136,6 +146,7 @@ function SalesChart({ data }: { data: { month: string; sales: number }[] }) {
   const padding = { top: 20, right: 20, bottom: 40, left: 70 };
   const chartW = width - padding.left - padding.right;
   const chartH = height - padding.top - padding.bottom;
+
   const maxSales = Math.max(...data.map((d) => d.sales));
   const minSales = Math.min(...data.map((d) => d.sales));
   const yMax = Math.ceil(maxSales / 500000) * 500000;
@@ -158,8 +169,6 @@ function SalesChart({ data }: { data: { month: string; sales: number }[] }) {
             <stop offset="100%" stopColor="#9966cc" stopOpacity={0.02} />
           </linearGradient>
         </defs>
-
-        {/* Grid lines */}
         {Array.from({ length: yTicks + 1 }).map((_, i) => {
           const val = yMin + (yRange / yTicks) * i;
           const y = getY(val);
@@ -172,21 +181,13 @@ function SalesChart({ data }: { data: { month: string; sales: number }[] }) {
             </g>
           );
         })}
-
-        {/* Area fill */}
         <path d={areaPath} fill="url(#salesGradient)" />
-
-        {/* Line */}
         <path d={linePath} fill="none" stroke="#9966cc" strokeWidth={3} strokeLinejoin="round" strokeLinecap="round" />
-
-        {/* X-axis labels */}
         {data.map((d, i) => (
           <text key={`x-${i}`} x={getX(i)} y={height - 10} textAnchor="middle" fill="#9ca3af" fontSize={12}>
             {d.month}
           </text>
         ))}
-
-        {/* Dots & hover areas */}
         {data.map((d, i) => (
           <g key={`dot-${i}`}
             onMouseEnter={() => setHoveredIndex(i)}
@@ -196,22 +197,10 @@ function SalesChart({ data }: { data: { month: string; sales: number }[] }) {
             <circle cx={getX(i)} cy={getY(d.sales)} r={hoveredIndex === i ? 6 : 4} fill="#9966cc" stroke="white" strokeWidth={2} />
           </g>
         ))}
-
-        {/* Tooltip */}
         {hoveredIndex !== null && (
           <g>
             <line x1={getX(hoveredIndex)} y1={padding.top} x2={getX(hoveredIndex)} y2={padding.top + chartH} stroke="#9966cc" strokeWidth={1} strokeDasharray="4 4" opacity={0.4} />
-            <rect
-              x={getX(hoveredIndex) - 70}
-              y={getY(data[hoveredIndex].sales) - 50}
-              width={140}
-              height={40}
-              rx={8}
-              fill="white"
-              stroke="#e5e7eb"
-              strokeWidth={1}
-              filter="drop-shadow(0 2px 4px rgba(0,0,0,0.1))"
-            />
+            <rect x={getX(hoveredIndex) - 70} y={getY(data[hoveredIndex].sales) - 50} width={140} height={40} rx={8} fill="white" stroke="#e5e7eb" strokeWidth={1} filter="drop-shadow(0 2px 4px rgba(0,0,0,0.1))" />
             <text x={getX(hoveredIndex)} y={getY(data[hoveredIndex].sales) - 36} textAnchor="middle" fill="#6b7280" fontSize={11}>
               {data[hoveredIndex].month}
             </text>
@@ -268,9 +257,14 @@ export default function Admin() {
 
   const handleSaveEdit = async () => {
     if (!editingProduct) return;
+    // Set base price equal to normal price if not set
+    const productToSave = {
+      ...editingProduct,
+      base_price: editingProduct.base_price || editingProduct.price
+    };
     try {
-      await updateProduct(editingProduct.id, editingProduct);
-      setProducts((prev) => prev.map((p) => (p.id === editingProduct.id ? editingProduct : p)));
+      await updateProduct(productToSave.id, productToSave);
+      setProducts((prev) => prev.map((p) => (p.id === productToSave.id ? productToSave : p)));
       setEditingProduct(null);
       toast.success("Product updated");
     } catch (err) {
@@ -280,8 +274,13 @@ export default function Admin() {
   };
 
   const handleAddProduct = async () => {
+    // Set base price equal to normal price if not set
+    const productToSave = {
+      ...newProduct,
+      base_price: newProduct.base_price || newProduct.price
+    };
     try {
-      const created = await createProduct(newProduct);
+      const created = await createProduct(productToSave);
       setProducts((prev) => [...prev, created]);
       setShowAddModal(false);
       setNewProduct(emptyProduct);
@@ -304,7 +303,7 @@ export default function Admin() {
       toast.success("Image uploaded successfully!");
     } catch (err) {
       console.error("Image upload failed:", err);
-      toast.error("Failed to upload image. Please try again.");
+      toast.error("Failed to upload image.");
     } finally {
       setUploading(false);
     }
@@ -322,24 +321,6 @@ export default function Admin() {
     }
   };
 
-  const toggleSize = (size: string, target: "new" | "edit") => {
-    if (target === "new") {
-      setNewProduct((prev) => ({
-        ...prev,
-        sizes: prev.sizes?.includes(size)
-          ? prev.sizes.filter((s) => s !== size)
-          : [...(prev.sizes || []), size],
-      }));
-    } else if (editingProduct) {
-      setEditingProduct({
-        ...editingProduct,
-        sizes: editingProduct.sizes?.includes(size)
-          ? editingProduct.sizes.filter((s) => s !== size)
-          : [...(editingProduct.sizes || []), size],
-      });
-    }
-  };
-
   const filteredProducts = products.filter(
     (p) =>
       p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -351,7 +332,13 @@ export default function Admin() {
   const totalRevenue = orders.reduce((sum, o) => sum + o.total, 0);
   const totalProducts = products.length;
   const totalOrders = orders.length;
-  const totalStock = products.reduce((sum, p) => sum + (p.stock || 0), 0);
+  // Calculate total stock including variants
+  const totalStock = products.reduce((sum, p) => {
+    if (p.variants && p.variants.length > 0) {
+      return sum + p.variants.reduce((vSum, v) => vSum + v.stock_quantity, 0);
+    }
+    return sum + (p.stock || 0);
+  }, 0);
 
   // Product form fields component
   const renderProductForm = (product: any, setProduct: (p: any) => void, target: "new" | "edit") => (
@@ -394,13 +381,21 @@ export default function Admin() {
         </div>
       </div>
 
-      {/* Name */}
+      {/* Name & Description */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">Product Name *</label>
         <input
           placeholder="e.g. BTS Dynamite T-Shirt"
           value={product.name}
           onChange={(e) => setProduct({ ...product, name: e.target.value })}
+          className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#9966cc] mb-3"
+        />
+        <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+        <textarea
+          placeholder="Product details for the quick add popup..."
+          value={product.description || ""}
+          onChange={(e) => setProduct({ ...product, description: e.target.value })}
+          rows={3}
           className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#9966cc]"
         />
       </div>
@@ -428,10 +423,10 @@ export default function Admin() {
         </div>
       </div>
 
-      {/* Price & Stock */}
+      {/* Base Price & Default Stock */}
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Price (LKR) *</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Base Price (LKR) *</label>
           <input
             type="number"
             placeholder="e.g. 9000"
@@ -439,9 +434,10 @@ export default function Admin() {
             onChange={(e) => setProduct({ ...product, price: +e.target.value })}
             className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#9966cc]"
           />
+          <span className="text-xs text-gray-500">Used if no variants exist.</span>
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Stock *</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Base Stock *</label>
           <input
             type="number"
             placeholder="e.g. 50"
@@ -449,33 +445,143 @@ export default function Admin() {
             onChange={(e) => setProduct({ ...product, stock: +e.target.value })}
             className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#9966cc]"
           />
+          <span className="text-xs text-gray-500">Ignored if variants have stock.</span>
         </div>
       </div>
 
-      {/* Brand */}
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Brand</label>
-        <input
-          placeholder="e.g. COSRX, HYBE, K-Style"
-          value={product.brand || ""}
-          onChange={(e) => setProduct({ ...product, brand: e.target.value })}
-          className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#9966cc]"
-        />
+      {/* ========================================================= */}
+      {/* NEW: DYNAMIC VARIANT BUILDER */}
+      {/* ========================================================= */}
+      <div className="border-t border-gray-200 pt-5 mt-5">
+        <div className="flex justify-between items-center mb-3">
+          <div>
+            <h4 className="text-sm font-bold text-gray-900">Product Variants</h4>
+            <p className="text-xs text-gray-500">Add Sizes, Colors, or Volume (ML) options</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              const currentVariants = product.variants || [];
+              setProduct({
+                ...product,
+                options_type: product.options_type || "Size",
+                variants: [
+                  ...currentVariants, 
+                  { 
+                    sku: `VAR-${Date.now().toString().slice(-6)}`, 
+                    label: "", 
+                    price: product.price || 0, 
+                    stock_quantity: 0 
+                  }
+                ]
+              });
+            }}
+            className="bg-[#9966cc] text-white px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-[#7744aa] flex items-center gap-1 transition-colors"
+          >
+            <Plus className="w-4 h-4" /> Add Option
+          </button>
+        </div>
+
+        {(product.variants && product.variants.length > 0) && (
+          <div className="bg-gray-50 p-4 rounded-xl border border-gray-200 space-y-4">
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 mb-1 uppercase tracking-wider">
+                What are these options?
+              </label>
+              <input
+                placeholder="e.g., Size, Volume, Color"
+                value={product.options_type || ""}
+                onChange={(e) => setProduct({ ...product, options_type: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-[#9966cc]"
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                Variant Details
+              </label>
+              {product.variants.map((variant: ProductVariant, index: number) => (
+                <div key={index} className="flex gap-2 items-center bg-white p-2 rounded-lg border border-gray-200 shadow-sm">
+                  <div className="flex-1">
+                    <input
+                      placeholder="Label (e.g. 50ml, Small, Red)"
+                      value={variant.label}
+                      onChange={(e) => {
+                        const newVariants = [...product.variants];
+                        newVariants[index].label = e.target.value;
+                        setProduct({ ...product, variants: newVariants });
+                      }}
+                      className="w-full px-2 py-1.5 border-none bg-transparent text-sm focus:outline-none focus:ring-1 focus:ring-[#9966cc] rounded"
+                    />
+                  </div>
+                  <div className="w-24">
+                    <input
+                      type="number"
+                      placeholder="Price"
+                      value={variant.price === 0 ? "" : variant.price}
+                      onChange={(e) => {
+                        const newVariants = [...product.variants];
+                        newVariants[index].price = Number(e.target.value);
+                        setProduct({ ...product, variants: newVariants });
+                      }}
+                      className="w-full px-2 py-1.5 border border-gray-200 rounded text-sm focus:outline-none focus:border-[#9966cc]"
+                    />
+                  </div>
+                  <div className="w-20">
+                    <input
+                      type="number"
+                      placeholder="Stock"
+                      value={variant.stock_quantity === 0 && target === 'new' ? "" : variant.stock_quantity}
+                      onChange={(e) => {
+                        const newVariants = [...product.variants];
+                        newVariants[index].stock_quantity = Number(e.target.value);
+                        setProduct({ ...product, variants: newVariants });
+                      }}
+                      className="w-full px-2 py-1.5 border border-gray-200 rounded text-sm focus:outline-none focus:border-[#9966cc]"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const newVariants = product.variants.filter((_: any, i: number) => i !== index);
+                      setProduct({ ...product, variants: newVariants });
+                    }}
+                    className="p-1.5 text-red-500 hover:bg-red-50 rounded transition-colors"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+      {/* ========================================================= */}
+
+      {/* Brand & Kpop Group */}
+      <div className="grid grid-cols-2 gap-3 border-t border-gray-200 pt-5 mt-5">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Brand</label>
+          <input
+            placeholder="e.g. COSRX, HYBE"
+            value={product.brand || ""}
+            onChange={(e) => setProduct({ ...product, brand: e.target.value })}
+            className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#9966cc]"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">K-Pop Group</label>
+          <select
+            value={product.kpopGroup || ""}
+            onChange={(e) => setProduct({ ...product, kpopGroup: e.target.value })}
+            className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#9966cc]"
+          >
+            {KPOP_GROUPS.map((g) => <option key={g} value={g}>{g || "None"}</option>)}
+          </select>
+        </div>
       </div>
 
-      {/* K-Pop Group */}
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">K-Pop Group (if applicable)</label>
-        <select
-          value={product.kpopGroup || ""}
-          onChange={(e) => setProduct({ ...product, kpopGroup: e.target.value })}
-          className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#9966cc]"
-        >
-          {KPOP_GROUPS.map((g) => <option key={g} value={g}>{g || "None"}</option>)}
-        </select>
-      </div>
-
-      {/* Badge & Status Tag */}
+      {/* Badges */}
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Badge</label>
@@ -498,76 +604,31 @@ export default function Admin() {
           </select>
         </div>
       </div>
-
-      {/* Clothing-specific: Sizes & Material */}
+      
+      {/* Extra Metadata */}
       {(product.category === "Clothing") && (
-        <>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Available Sizes</label>
-            <div className="flex flex-wrap gap-2">
-              {SIZE_OPTIONS.map((size) => (
-                <button
-                  key={size}
-                  type="button"
-                  onClick={() => toggleSize(size, target)}
-                  className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${
-                    (product.sizes || []).includes(size)
-                      ? "bg-[#9966cc] text-white border-[#9966cc]"
-                      : "bg-white text-gray-700 border-gray-300 hover:border-[#9966cc]"
-                  }`}
-                >
-                  {size}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Material</label>
-            <input
-              placeholder="e.g. 100% Cotton, Cotton Blend"
-              value={product.material || ""}
-              onChange={(e) => setProduct({ ...product, material: e.target.value })}
-              className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#9966cc]"
-            />
-          </div>
-        </>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Material</label>
+          <input
+            placeholder="e.g. 100% Cotton, Cotton Blend"
+            value={product.material || ""}
+            onChange={(e) => setProduct({ ...product, material: e.target.value })}
+            className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#9966cc]"
+          />
+        </div>
       )}
 
-      {/* Beauty-specific: Skin Type & Volume */}
       {(product.category === "Beauty") && (
-        <>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Skin Type</label>
-            <select
-              value={product.skinType || ""}
-              onChange={(e) => setProduct({ ...product, skinType: e.target.value })}
-              className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#9966cc]"
-            >
-              {SKIN_TYPES.map((s) => <option key={s} value={s}>{s || "Not specified"}</option>)}
-            </select>
-          </div>
-          
-          {/* FIX: Volumes are now clickable multi-select buttons, just like Clothing! */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Available Volumes</label>
-            <div className="flex flex-wrap gap-2">
-              {VOLUME_OPTIONS.filter(v => v !== "").map((vol) => (
-                <button
-                  key={vol}
-                  type="button"
-                  onClick={() => toggleSize(vol, target)} 
-                  className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${
-                    (product.sizes || []).includes(vol)
-                      ? "bg-[#9966cc] text-white border-[#9966cc]"
-                      : "bg-white text-gray-700 border-gray-300 hover:border-[#9966cc]"
-                  }`}
-                >
-                  {vol}
-                </button>
-              ))}
-            </div>
-          </div>
-        </>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Skin Type</label>
+          <select
+            value={product.skinType || ""}
+            onChange={(e) => setProduct({ ...product, skinType: e.target.value })}
+            className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#9966cc]"
+          >
+            {SKIN_TYPES.map((s) => <option key={s} value={s}>{s || "Not specified"}</option>)}
+          </select>
+        </div>
       )}
     </div>
   );
@@ -672,15 +733,20 @@ export default function Admin() {
                     <tr>
                       <th className="text-left px-6 py-4 text-sm font-semibold text-gray-700">Product</th>
                       <th className="text-left px-6 py-4 text-sm font-semibold text-gray-700 hidden md:table-cell">Category</th>
-                      <th className="text-left px-6 py-4 text-sm font-semibold text-gray-700 hidden lg:table-cell">Brand</th>
                       <th className="text-left px-6 py-4 text-sm font-semibold text-gray-700">Stock</th>
                       <th className="text-left px-6 py-4 text-sm font-semibold text-gray-700">Price</th>
-                      <th className="text-left px-6 py-4 text-sm font-semibold text-gray-700 hidden lg:table-cell">Tags</th>
+                      <th className="text-left px-6 py-4 text-sm font-semibold text-gray-700 hidden lg:table-cell">Options</th>
                       <th className="text-left px-6 py-4 text-sm font-semibold text-gray-700">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                    {filteredProducts.map((product) => (
+                    {filteredProducts.map((product) => {
+                      const hasVariants = product.variants && product.variants.length > 0;
+                      const productStock = hasVariants 
+                        ? product.variants!.reduce((sum, v) => sum + v.stock_quantity, 0)
+                        : product.stock;
+                        
+                      return (
                       <tr key={product.id} className="hover:bg-gray-50">
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-3">
@@ -691,34 +757,28 @@ export default function Admin() {
                             />
                             <div>
                               <div className="font-medium text-gray-900">{product.name}</div>
-                              <div className="text-sm text-gray-500">{product.subcategory}</div>
+                              <div className="text-sm text-gray-500">{product.brand || product.subcategory}</div>
                             </div>
                           </div>
                         </td>
                         <td className="px-6 py-4 text-gray-700 hidden md:table-cell">{product.category}</td>
-                        <td className="px-6 py-4 text-gray-700 hidden lg:table-cell">{product.brand || "-"}</td>
                         <td className="px-6 py-4">
-                          <span className={`font-medium ${product.stock > 50 ? "text-green-600" : product.stock > 10 ? "text-yellow-600" : "text-red-600"}`}>
-                            {product.stock} in stock
+                          <span className={`font-medium ${productStock > 50 ? "text-green-600" : productStock > 10 ? "text-yellow-600" : "text-red-600"}`}>
+                            {productStock} {hasVariants ? "(Total)" : ""}
                           </span>
                         </td>
-                        <td className="px-6 py-4 font-semibold text-gray-900">{formatLKR(product.price)}</td>
+                        <td className="px-6 py-4 font-semibold text-gray-900">
+                          {formatLKR(product.base_price || product.price)}
+                          {hasVariants && <span className="text-xs text-gray-400 font-normal block">Starts at</span>}
+                        </td>
                         <td className="px-6 py-4 hidden lg:table-cell">
-                          <div className="flex flex-wrap gap-1">
-                            {product.badge && (
-                              <span className="px-2 py-0.5 rounded-full text-xs bg-purple-100 text-purple-700">{product.badge}</span>
-                            )}
-                            {product.statusTag && (
-                              <span className={`px-2 py-0.5 rounded-full text-xs ${
-                                product.statusTag === "Clearance" ? "bg-red-100 text-red-700" :
-                                product.statusTag === "Limited Stock" ? "bg-orange-100 text-orange-700" :
-                                "bg-yellow-100 text-yellow-700"
-                              }`}>{product.statusTag}</span>
-                            )}
-                            {product.kpopGroup && (
-                              <span className="px-2 py-0.5 rounded-full text-xs bg-blue-100 text-blue-700">{product.kpopGroup}</span>
-                            )}
-                          </div>
+                          {hasVariants ? (
+                            <span className="px-2 py-1 bg-purple-100 text-purple-700 text-xs rounded-full">
+                              {product.variants!.length} {product.options_type}s
+                            </span>
+                          ) : (
+                            <span className="text-gray-400 text-sm">None</span>
+                          )}
                         </td>
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-2">
@@ -737,13 +797,13 @@ export default function Admin() {
                           </div>
                         </td>
                       </tr>
-                    ))}
+                    )})}
                   </tbody>
                 </table>
               </div>
             </div>
 
-            {/* Sales Chart - Custom SVG */}
+            {/* Sales Chart */}
             <div className="mt-8 bg-white rounded-lg shadow-sm p-6">
               <h2 className="text-xl font-bold text-gray-900 mb-6">Sales Analytics (LKR)</h2>
               <SalesChart data={salesData} />
@@ -775,7 +835,7 @@ export default function Admin() {
                   <tbody className="divide-y divide-gray-100">
                     {orders.map((order) => (
                       <tr key={order.id} className="hover:bg-gray-50">
-                        <td className="px-6 py-4 font-medium text-gray-900">{order.id}</td>
+                        <td className="px-6 py-4 font-medium text-gray-900">{order.id.slice(0, 8)}...</td>
                         <td className="px-6 py-4">
                           <div>
                             <div className="text-gray-900">{getCustomerName(order.customer)}</div>
@@ -845,8 +905,8 @@ export default function Admin() {
             </div>
             {renderProductForm(editingProduct, (p: Product) => setEditingProduct(p), "edit")}
             <button
-               onClick={handleSaveEdit}
-              className="w-full mt-4 bg-[#9966cc] text-white py-2.5 rounded-lg font-semibold hover:bg-[#7744aa]"
+              onClick={handleSaveEdit}
+              className="w-full mt-4 bg-[#9966cc] text-white py-3 rounded-lg font-bold hover:bg-[#7744aa] transition-colors shadow-md"
             >
               Save Changes
             </button>
@@ -867,8 +927,8 @@ export default function Admin() {
             {renderProductForm(newProduct, (p: any) => setNewProduct(p), "new")}
             <button
               onClick={handleAddProduct}
-              className="w-full mt-4 bg-[#9966cc] text-white py-2.5 rounded-lg font-semibold hover:bg-[#7744aa]"
-             >
+              className="w-full mt-4 bg-[#9966cc] text-white py-3 rounded-lg font-bold hover:bg-[#7744aa] transition-colors shadow-md"
+            >
               Add Product
             </button>
           </div>
@@ -878,34 +938,40 @@ export default function Admin() {
       {/* Order Detail Modal */}
       {viewingOrder && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl p-6 w-full max-w-lg">
+          <div className="bg-white rounded-xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-bold">Order {viewingOrder.id}</h3>
-              <button onClick={() => setViewingOrder(null)}>
+              <h3 className="text-lg font-bold text-gray-900">Order Details</h3>
+              <button onClick={() => setViewingOrder(null)} className="text-gray-400 hover:text-gray-900">
                 <X className="w-5 h-5" />
               </button>
             </div>
             <div className="space-y-4">
-              {/* Customer Info */}
-              <div className="bg-gray-50 rounded-lg p-4">
-                <h4 className="font-semibold text-gray-900 mb-2">Customer Information</h4>
-                <div className="space-y-1 text-sm">
-                   <p><span className="text-gray-500">Name:</span> {getCustomerDetail(viewingOrder.customer, "name")}</p>
-                  <p><span className="text-gray-500">Email:</span> {getCustomerDetail(viewingOrder.customer, "email") || "N/A"}</p>
-                  <p><span className="text-gray-500">Phone:</span> {getCustomerDetail(viewingOrder.customer, "phone") || "N/A"}</p>
-                  <p><span className="text-gray-500">Address:</span> {getCustomerDetail(viewingOrder.customer, "address") || "N/A"}</p>
+              <div className="bg-gray-50 rounded-lg p-4 border border-gray-100">
+                <h4 className="font-semibold text-gray-900 mb-3 text-sm uppercase tracking-wider">Customer Information</h4>
+                <div className="space-y-2 text-sm">
+                  <p><span className="text-gray-500 font-medium">Name:</span> {getCustomerDetail(viewingOrder.customer, "name")}</p>
+                  <p><span className="text-gray-500 font-medium">Email:</span> {getCustomerDetail(viewingOrder.customer, "email") || "N/A"}</p>
+                  <p><span className="text-gray-500 font-medium">Phone:</span> {getCustomerDetail(viewingOrder.customer, "phone") || "N/A"}</p>
+                  <p><span className="text-gray-500 font-medium">Address:</span> {getCustomerDetail(viewingOrder.customer, "address") || "N/A"}</p>
                 </div>
               </div>
 
-              {/* Order Items */}
-              <div className="bg-gray-50 rounded-lg p-4">
-                <h4 className="font-semibold text-gray-900 mb-2">Order Items</h4>
-                <div className="space-y-2">
+              <div className="bg-gray-50 rounded-lg p-4 border border-gray-100">
+                <h4 className="font-semibold text-gray-900 mb-3 text-sm uppercase tracking-wider">Order Items</h4>
+                <div className="space-y-3">
                   {Array.isArray(viewingOrder.items) ? (
                     viewingOrder.items.map((item: any, i: number) => (
-                        <div key={i} className="flex justify-between text-sm">
-                          <span>{item.name} x{item.quantity}</span>
-                          <span className="font-medium">{formatLKR(item.price * item.quantity)}</span>
+                        <div key={i} className="flex justify-between items-center text-sm bg-white p-2 rounded border border-gray-100">
+                          <div>
+                            <span className="font-medium text-gray-900">{item.name}</span>
+                            {item.selectedVariant && (
+                               <span className="text-xs text-gray-500 ml-2 bg-gray-100 px-1.5 py-0.5 rounded">
+                                 {item.selectedVariant.label}
+                               </span>
+                            )}
+                            <div className="text-gray-500 mt-0.5">Qty: {item.quantity}</div>
+                          </div>
+                          <span className="font-semibold text-[#9966cc]">{formatLKR(item.price * item.quantity)}</span>
                         </div>
                       ))
                     ) : (
@@ -914,17 +980,16 @@ export default function Admin() {
                      </p>
                    )}
                   </div>
-               </div>
+                </div>
 
-              {/* Total */}
-              <div className="flex justify-between items-center pt-2 border-t font-bold text-lg">
-                <span>Total</span>
-                <span className="text-[#9966cc]">{formatLKR(viewingOrder.total)}</span>
+              <div className="flex justify-between items-center pt-4 border-t border-gray-200">
+                <span className="font-bold text-gray-900 text-lg">Total</span>
+                <span className="font-black text-2xl text-[#9966cc]">{formatLKR(viewingOrder.total)}</span>
               </div>
 
-               <div className="flex justify-between items-center text-sm">
-                <span className="text-gray-500">Status: {viewingOrder.status}</span>
-                <span className="text-gray-500">Date: {viewingOrder.date}</span>
+              <div className="flex justify-between items-center text-xs text-gray-400 bg-gray-50 p-2 rounded">
+                <span>ID: {viewingOrder.id}</span>
+                <span>Date: {viewingOrder.date}</span>
               </div>
             </div>
           </div>
