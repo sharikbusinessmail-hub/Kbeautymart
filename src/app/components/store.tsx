@@ -19,13 +19,11 @@ export interface Product {
   image: string;
   badge?: string | null;
   stock: number;
+  description?: string; // Add description for the modal
   kpopGroup?: string;
   brand?: string;
-  sizes?: string[];
   material?: string;
   skinType?: string;
-  volume?: string;
-  statusTag?: string | null;
 }
 
 export interface CartItem {
@@ -63,7 +61,8 @@ interface StoreContextType {
   products: Product[];
   setProducts: (p: Product[]) => void;
   cart: CartItem[];
-  addToCart: (product: Product, variant?: ProductVariant) => void;
+  // Update to accept an optional quantity
+  addToCart: (product: Product, variant?: ProductVariant, quantity?: number) => void;
   removeFromCart: (productId: string, variantSku?: string) => void;
   updateQuantity: (productId: string, qty: number, variantSku?: string) => void;
   clearCart: () => void;
@@ -106,7 +105,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     localStorage.setItem("kbeauty-wishlist", JSON.stringify(wishlist));
   }, [wishlist]);
 
-  const addToCart = useCallback((product: Product, variant?: ProductVariant) => {
+  // Update logic to handle quantity
+  const addToCart = useCallback((product: Product, variant?: ProductVariant, quantity: number = 1) => {
     setCart((prev) => {
       // Check if the exact product AND exact variant are already in the cart
       const existing = prev.find((item) => 
@@ -117,11 +117,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       if (existing) {
         return prev.map((item) =>
           item.product.id === product.id && item.selectedVariant?.sku === variant?.sku
-            ? { ...item, quantity: item.quantity + 1 }
+            ? { ...item, quantity: item.quantity + quantity }
             : item
         );
       }
-      return [...prev, { product, quantity: 1, selectedVariant: variant }];
+      return [...prev, { product, quantity: quantity, selectedVariant: variant }];
     });
   }, []);
 
