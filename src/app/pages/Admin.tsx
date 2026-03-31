@@ -547,26 +547,28 @@ export default function Admin() {
             </select>
           </div>
           
-          {/* UPDATED SECTION: Volume is now a select dropdown */}
+          {/* FIX: Volumes are now clickable multi-select buttons, just like Clothing! */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Volume / Size</label>
-            <select
-              value={product.volume || ""}
-              onChange={(e) => setProduct({ ...product, volume: e.target.value })}
-              className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#9966cc]"
-            >
-              <option value="" disabled>Select a volume</option>
-              {VOLUME_OPTIONS.map((vol) => (
-                <option key={vol} value={vol}>
-                  {vol || "None"}
-                </option>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Available Volumes</label>
+            <div className="flex flex-wrap gap-2">
+              {VOLUME_OPTIONS.filter(v => v !== "").map((vol) => (
+                <button
+                  key={vol}
+                  type="button"
+                  onClick={() => toggleSize(vol, target)} // We save volumes into the sizes array so the storefront can read it universally
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${
+                    (product.sizes || []).includes(vol)
+                      ? "bg-[#9966cc] text-white border-[#9966cc]"
+                      : "bg-white text-gray-700 border-gray-300 hover:border-[#9966cc]"
+                  }`}
+                >
+                  {vol}
+                </button>
               ))}
-            </select>
+            </div>
           </div>
         </>
       )}
-    </div>
-  );
 
   if (loading) {
     return (

@@ -24,17 +24,32 @@ export default function ProductGrid() {
   }, [setProducts]);
 
   // UPDATED: Check if product needs the modal before adding
+  // FIX: ALWAYS open the modal so users can leave special requests!
   const handleInitialClick = (product: Product) => {
-    if (product.sizes && product.sizes.length > 0) {
-      // Open the modal, reset previous selections
-      setSelectedSize("");
-      setSpecialRequest("");
-      setActiveModalProduct(product);
-    } else {
-      // No sizes needed, add directly
-      addToCart(product);
-      toast.success(`${product.name} added to cart!`);
+    setSelectedSize("");
+    setSpecialRequest("");
+    setActiveModalProduct(product);
+  };
+
+  // FIX: Only block submission if the product actually has sizes to choose from
+  const handleModalSubmit = () => {
+    if (!activeModalProduct) return;
+    
+    // Check if the product has options, and if the user forgot to pick one
+    const hasOptions = activeModalProduct.sizes && activeModalProduct.sizes.length > 0;
+    
+    if (hasOptions && !selectedSize) {
+      toast.error("Please select an option!");
+      return;
     }
+
+    // Add to cart! 
+    // (If you want to pass the special request to the cart, you'll need to update addToCart in store.ts to accept it)
+    addToCart(activeModalProduct, selectedSize);
+    
+    const sizeText = selectedSize ? ` (${selectedSize})` : "";
+    toast.success(`${activeModalProduct.name}${sizeText} added to cart!`);
+    setActiveModalProduct(null); // Close modal
   };
 
   // NEW: Handle the final add from inside the modal
@@ -145,27 +160,29 @@ export default function ProductGrid() {
               </div>
             </div>
 
-            {/* Size/Volume Selection */}
-            <div className="mb-4">
-              <label className="block text-sm font-semibold text-gray-900 mb-2">
-                Select Option <span className="text-red-500">*</span>
-              </label>
-              <div className="flex flex-wrap gap-2">
-                {activeModalProduct.sizes?.map((size) => (
-                  <button
-                    key={size}
-                    onClick={() => setSelectedSize(size)}
-                    className={`px-4 py-2 rounded-lg border text-sm font-medium transition-colors ${
-                      selectedSize === size 
-                        ? "bg-[#9966cc] border-[#9966cc] text-white" 
-                        : "bg-white border-gray-300 text-gray-700 hover:border-[#9966cc]"
-                    }`}
-                  >
-                    {size}
-                  </button>
-                ))}
+            {/* Size/Volume Selection - ONLY show if product has sizes */}
+            {activeModalProduct.sizes && activeModalProduct.sizes.length > 0 && (
+              <div className="mb-4">
+                <label className="block text-sm font-semibold text-gray-900 mb-2">
+                  Select Option <span className="text-red-500">*</span>
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {activeModalProduct.sizes.map((size) => (
+                    <button
+                      key={size}
+                      onClick={() => setSelectedSize(size)}
+                      className={`px-4 py-2 rounded-lg border text-sm font-medium transition-colors ${
+                        selectedSize === size 
+                          ? "bg-[#9966cc] border-[#9966cc] text-white" 
+                          : "bg-white border-gray-300 text-gray-700 hover:border-[#9966cc]"
+                      }`}
+                    >
+                      {size}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Special Requests */}
             <div className="mb-6">
