@@ -1,16 +1,16 @@
-import { Heart, ShoppingCart, Loader2 } from "lucide-react";
+import { Heart, ShoppingCart } from "lucide-react";
 import { useEffect, useState } from "react";
+import { Link } from "react-router";
 import { useStore, Product, formatLKR } from "./store";
 import { fetchProducts } from "./api";
 import { toast } from "sonner";
+import SkeletonCard from "./SkeletonCard";
+import QuickAddModal from "./QuickAddModal";
 
 export default function ProductGrid() {
   const { products, setProducts, addToCart, wishlist, toggleWishlist } = useStore();
   const [loading, setLoading] = useState(true);
-  
-  // NEW: Track the selected variant SKU for each product card in the grid
-  // e.g., { "cosrx-snail-mucin": "SNAIL-50", "bts-shirt": "SHIRT-M" }
-  const [selectedVariants, setSelectedVariants] = useState<Record<string, string>>({});
+  const [quickAddProduct, setQuickAddProduct] = useState<Product | null>(null);
 
   useEffect(() => {
     fetchProducts()
@@ -22,37 +22,25 @@ export default function ProductGrid() {
         toast.error("Failed to load products");
       })
       .finally(() => setLoading(false));
-  }, [setProducts]);
+  }, []);
 
-  // UPDATED: Now handles both simple products and variant products
   const handleAddToCart = (product: Product) => {
-    // If the product has variants, enforce selection
-    if (product.variants && product.variants.length > 0) {
-      const selectedSku = selectedVariants[product.id];
-      
-      if (!selectedSku) {
-        toast.error(`Please select an option for ${product.name}`);
-        return;
-      }
-
-      const activeVariant = product.variants.find(v => v.sku === selectedSku);
-      
-      // Pass the selected variant along with the product to your store
-      addToCart(product, activeVariant); 
-      toast.success(`${product.name} (${activeVariant?.label}) added to cart!`);
-    } else {
-      // Standard product with no variants
-      addToCart(product);
-      toast.success(`${product.name} added to cart!`);
-    }
+    setQuickAddProduct(product);
   };
 
   if (loading) {
     return (
-      <section className="py-16 bg-gray-50">
-        <div className="flex items-center justify-center gap-3 text-gray-500">
-          <Loader2 className="w-6 h-6 animate-spin" />
-          <span>Loading products...</span>
+      <section className="py-12 md:py-16 bg-gray-50" id="featured">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="mb-8">
+            <div className="h-9 bg-gray-200 rounded w-72 mb-3 animate-pulse" />
+            <div className="h-5 bg-gray-200 rounded w-56 animate-pulse" />
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <SkeletonCard key={i} />
+            ))}
+          </div>
         </div>
       </section>
     );
@@ -67,17 +55,12 @@ export default function ProductGrid() {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          {products.slice(0, 8).map((product) => {
-            // Determine the price to display (updates if they select a more expensive variant)
-            const activeSku = selectedVariants[product.id];
-            const activeVariant = product.variants?.find(v => v.sku === activeSku);
-            const displayPrice = activeVariant ? activeVariant.price : (product.base_price || product.price);
-
-            return (
-              <div
-                key={product.id}
-                className="bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 group"
-              >
+          {products.slice(0, 8).map((product) => (
+            <div
+              key={product.id}
+              className="bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 group"
+            >
+              <Link to={`/product/${product.id}`} className="block">
                 <div className="relative aspect-square overflow-hidden bg-gray-100">
                   <img
                     src={product.image}
@@ -101,8 +84,22 @@ export default function ProductGrid() {
                       </span>
                     </div>
                   )}
+                  {product.statusTag && (
+                    <div className="absolute top-3 left-3 mt-7">
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                        product.statusTag === "Clearance" ? "bg-red-100 text-red-700" :
+                        product.statusTag === "Limited Stock" ? "bg-orange-100 text-orange-700" :
+                        "bg-yellow-100 text-yellow-700"
+                      }`}>
+                        {product.statusTag}
+                      </span>
+                    </div>
+                  )}
                   <button
-                    onClick={() => toggleWishlist(product.id)}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      toggleWishlist(product.id);
+                    }}
                     className="absolute top-3 right-3 w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-md hover:scale-110 transition-all z-10"
                   >
                     <Heart
@@ -113,56 +110,42 @@ export default function ProductGrid() {
                       }`}
                     />
                   </button>
-
-                  {/* UPDATED HOVER OVERLAY: Now includes variant selector */}
-                  <div className="absolute bottom-0 left-0 right-0 translate-y-full group-hover:translate-y-0 transition-transform duration-300 bg-white/95 backdrop-blur-sm shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
-                    
-                    {/* Render dropdown ONLY if product has variants */}
-                    {product.variants && product.variants.length > 0 && (
-                      <div className="px-3 py-2 border-b border-gray-100">
-                        <select
-                          className="w-full text-sm p-1.5 bg-gray-50 border border-gray-200 rounded text-gray-700 outline-none focus:border-[#9966cc]"
-                          value={selectedVariants[product.id] || ""}
-                          onChange={(e) => setSelectedVariants({
-                            ...selectedVariants,
-                            [product.id]: e.target.value
-                          })}
-                        >
-                          <option value="" disabled>Select {product.options_type || "Option"}</option>
-                          {product.variants.map((v) => (
-                            <option key={v.sku} value={v.sku} disabled={v.stock_quantity === 0}>
-                              {v.label} {v.stock_quantity === 0 ? "(Out of Stock)" : ""}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    )}
-
+                  <div className="absolute bottom-0 left-0 right-0 translate-y-full group-hover:translate-y-0 transition-transform duration-300">
                     <button
-                      onClick={() => handleAddToCart(product)}
-                      // Disable button if variants exist but none are selected
-                      disabled={product.variants?.length > 0 && !selectedVariants[product.id]}
-                      className="w-full bg-[#9966cc] text-white py-3 font-semibold hover:bg-[#7744aa] disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        handleAddToCart(product);
+                      }}
+                      className="w-full bg-[#9966cc] text-white py-3 font-semibold hover:bg-[#7744aa] transition-colors flex items-center justify-center gap-2"
                     >
                       <ShoppingCart className="w-5 h-5" />
                       Quick Add
                     </button>
                   </div>
                 </div>
-                
                 <div className="p-4">
                   <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">
                     {product.category}
+                    {product.kpopGroup && ` · ${product.kpopGroup}`}
                   </p>
                   <h3 className="font-semibold text-gray-900 mb-2 line-clamp-2">{product.name}</h3>
-                  {/* Dynamic Price Display */}
-                  <p className="text-lg font-bold text-[#9966cc]">{formatLKR(displayPrice)}</p>
+                  <p className="text-lg font-bold text-[#9966cc]">{formatLKR(product.price)}</p>
                 </div>
-              </div>
-            );
-          })}
+              </Link>
+            </div>
+          ))}
         </div>
       </div>
+      {quickAddProduct && (
+        <QuickAddModal
+          product={quickAddProduct}
+          onClose={() => setQuickAddProduct(null)}
+          onAddToCart={(product, size, variant, qty) => {
+            addToCart(product, size, variant, qty);
+            toast.success(`${product.name} added to cart!`);
+          }}
+        />
+      )}
     </section>
   );
 }

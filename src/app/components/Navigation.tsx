@@ -11,8 +11,11 @@ import {
   Shield,
   ChevronLeft,
   Flame,
+  LogOut,
+  LogIn,
 } from "lucide-react";
 import { useStore } from "./store";
+import { useAuth } from "./auth";
 
 const categories: Record<string, string[]> = {
   "K-Pop Groups": ["BTS", "Stray Kids", "NewJeans", "TWICE", "BLACKPINK", "SEVENTEEN", "ENHYPEN", "TXT"],
@@ -29,9 +32,12 @@ export default function Navigation() {
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const [mobileDepthCategory, setMobileDepthCategory] = useState<string | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
   const { cartCount, wishlist, searchQuery, setSearchQuery } = useStore();
+  const { user, signOut, isAdmin } = useAuth();
   const navigate = useNavigate();
   const timeoutRef = useRef<ReturnType<typeof setTimeout>>();
+  const userMenuRef = useRef<HTMLDivElement>(null);
 
   const handleMouseEnter = (key: string) => {
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
@@ -43,10 +49,24 @@ export default function Navigation() {
   };
 
   useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
+        setUserMenuOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
     return () => {
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      document.removeEventListener("mousedown", handleClickOutside);
     };
   }, []);
+
+  const handleLogout = async () => {
+    await signOut();
+    setUserMenuOpen(false);
+    navigate("/");
+  };
 
   const handleSubcategoryClick = (category: string, sub: string) => {
     navigate(`/category/${encodeURIComponent(category)}/${encodeURIComponent(sub)}`);
@@ -59,7 +79,7 @@ export default function Navigation() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           <Link to="/" className="text-2xl font-bold text-[#9966cc] shrink-0">
-            K·BEAUTY MART
+            K·BEAUTY
           </Link>
 
           {/* Desktop Menu */}
@@ -170,6 +190,51 @@ export default function Navigation() {
             >
               <Shield className="w-5 h-5" />
             </Link>
+            
+            {/* User Profile Menu */}
+            <div className="relative" ref={userMenuRef}>
+              <button
+                onClick={() => setUserMenuOpen(!userMenuOpen)}
+                className="p-2 text-gray-700 hover:text-[#9966cc] transition-colors"
+              >
+                <User className="w-5 h-5" />
+              </button>
+              {userMenuOpen && (
+                <div className="absolute right-0 top-full mt-2 w-56 bg-white shadow-xl rounded-xl py-2 border border-gray-100 z-50">
+                  {user ? (
+                    <>
+                      <div className="px-4 py-3 border-b border-gray-100">
+                        <p className="text-sm font-medium text-gray-900">
+                          {user.user_metadata?.name || "User"}
+                        </p>
+                        <p className="text-xs text-gray-500 truncate">{user.email}</p>
+                        {isAdmin && (
+                          <span className="inline-block mt-1 px-2 py-0.5 bg-purple-100 text-[#9966cc] rounded-full text-[10px] font-bold uppercase">
+                            Admin
+                          </span>
+                        )}
+                      </div>
+                      <button
+                        onClick={handleLogout}
+                        className="w-full text-left px-4 py-2.5 text-gray-700 hover:bg-purple-50 hover:text-[#9966cc] transition-colors text-sm flex items-center gap-2"
+                      >
+                        <LogOut className="w-4 h-4" />
+                        Logout
+                      </button>
+                    </>
+                  ) : (
+                    <Link
+                      to="/auth"
+                      onClick={() => setUserMenuOpen(false)}
+                      className="w-full block px-4 py-2.5 text-gray-700 hover:bg-purple-50 hover:text-[#9966cc] transition-colors text-sm flex items-center gap-2"
+                    >
+                      <LogIn className="w-4 h-4" />
+                      Login / Sign Up
+                    </Link>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Mobile */}

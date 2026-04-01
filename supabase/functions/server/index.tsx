@@ -36,8 +36,35 @@ const BUCKET_NAME = "make-5fb216ba-product-images";
       await supabase.storage.createBucket(BUCKET_NAME, { public: false });
       console.log("Created storage bucket:", BUCKET_NAME);
     }
+
+    // Create default admin user
+    const adminEmail = "admin@kpopstore.com";
+    const adminPassword = "admin123";
+    
+    const { data: existingUser } = await supabase.auth.admin.listUsers();
+    const adminExists = existingUser?.users?.some((u: any) => u.email === adminEmail);
+    
+    if (!adminExists) {
+      const { data, error } = await supabase.auth.admin.createUser({
+        email: adminEmail,
+        password: adminPassword,
+        user_metadata: { name: "Admin User", role: "admin" },
+        email_confirm: true,
+      });
+      
+      if (!error && data.user) {
+        await kv.set(`user:${data.user.id}`, {
+          id: data.user.id,
+          email: adminEmail,
+          name: "Admin User",
+          role: "admin",
+          createdAt: new Date().toISOString(),
+        });
+        console.log("Created default admin user:", adminEmail);
+      }
+    }
   } catch (e) {
-    console.log("Error creating bucket:", e);
+    console.log("Error in startup:", e);
   }
 })();
 
@@ -219,5 +246,48 @@ async function seedOrders() {
     await kv.set(`order:${o.id}`, o);
   }
 }
+
+// ---- AUTH ----
+app.post("/make-server-5fb216ba/auth/signup", async (c) => {
+  try {
+    const { email, password, name } = await c.req.json();
+    
+    if (!email || !password || !name) {
+      return c.json({ error: "Email, password, and name are required" }, 400);
+    }
+
+    const authSupabase = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+    );
+
+    const { data, error } = await authSupabase.auth.admin.createUser({
+      email,
+      password,
+      user_metadata: { name, role: "customer" },
+      // Automatically confirm the user's email since an email server hasn't been configured.
+      email_confirm: true,
+    });
+
+    if (error) {
+      console.log("Signup error:", error);
+      return c.json({ error: error.message }, 400);
+    }
+
+    // Store user profile in KV
+    await kv.set(`user:${data.user.id}`, {
+      id: data.user.id,
+      email,
+      name,
+      role: "customer",
+      createdAt: new Date().toISOString(),
+    });
+
+    return c.json({ user: data.user });
+  } catch (e) {
+    console.log("Error in signup:", e);
+    return c.json({ error: `Signup failed: ${e}` }, 500);
+  }
+});
 
 Deno.serve(app.fetch);

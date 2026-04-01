@@ -1,4 +1,15 @@
-import { createContext, useContext, useState, useCallback, useEffect, ReactNode } from "react";
+import { createContext, useContext, useState, useCallback, ReactNode, useEffect } from "react";
+
+export interface ProductVariant {
+  label: string;
+  price: number;
+  stock: number;
+}
+
+export interface ProductVariantGroup {
+  type: string; // "Size", "Color", "Volume"
+  options: ProductVariant[];
+}
 
 export interface Product {
   id: string;
@@ -16,12 +27,15 @@ export interface Product {
   skinType?: string;
   volume?: string;
   statusTag?: string | null;
+  description?: string;
+  variants?: ProductVariantGroup[];
 }
 
 export interface CartItem {
   product: Product;
   quantity: number;
   selectedSize?: string;
+  selectedVariant?: { type: string; label: string; price: number };
 }
 
 export interface OrderCustomer {
@@ -41,7 +55,7 @@ export interface OrderItem {
 
 export interface Order {
   id: string;
-  customer: OrderCustomer | string;
+  customer: OrderCustomer | string; // string for legacy compat
   items: OrderItem[];
   itemCount: number;
   total: number;
@@ -53,9 +67,9 @@ interface StoreContextType {
   products: Product[];
   setProducts: (p: Product[]) => void;
   cart: CartItem[];
-  addToCart: (product: Product, size?: string) => void;
-  removeFromCart: (productId: string) => void;
-  updateQuantity: (productId: string, qty: number) => void;
+  addToCart: (product: Product, size?: string, variant?: { type: string; label: string; price: number }, quantity?: number) => void;
+  removeFromCart: (productId: string, variantKey?: string) => void;
+  updateQuantity: (productId: string, qty: number, variantKey?: string) => void;
   clearCart: () => void;
   cartCount: number;
   cartTotal: number;
@@ -69,68 +83,87 @@ interface StoreContextType {
 
 const StoreContext = createContext<StoreContextType | null>(null);
 
+const CART_KEY = "kbeauty_cart";
+const WISHLIST_KEY = "kbeauty_wishlist";
+
+function loadFromStorage<T>(key: string, fallback: T): T {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [products, setProducts] = useState<Product[]>([]);
-  
-  // Initialize from LocalStorage
-  const [cart, setCart] = useState<CartItem[]>(() => {
-    const saved = localStorage.getItem("kbeauty-cart");
-    return saved ? JSON.parse(saved) : [];
-  });
-  
-  const [wishlist, setWishlist] = useState<string[]>(() => {
-    const saved = localStorage.getItem("kbeauty-wishlist");
-    return saved ? JSON.parse(saved) : [];
-  });
-  
+  const [cart, setCart] = useState<CartItem[]>(() => loadFromStorage(CART_KEY, []));
+  const [wishlist, setWishlist] = useState<string[]>(() => loadFromStorage(WISHLIST_KEY, []));
   const [orders, setOrders] = useState<Order[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
 
-  // Save to LocalStorage whenever cart changes
+  // Persist cart to localStorage
   useEffect(() => {
-    localStorage.setItem("kbeauty-cart", JSON.stringify(cart));
+    localStorage.setItem(CART_KEY, JSON.stringify(cart));
   }, [cart]);
 
-  // Save to LocalStorage whenever wishlist changes
+  // Persist wishlist to localStorage
   useEffect(() => {
-    localStorage.setItem("kbeauty-wishlist", JSON.stringify(wishlist));
+    localStorage.setItem(WISHLIST_KEY, JSON.stringify(wishlist));
   }, [wishlist]);
 
-  const addToCart = useCallback((product: Product, size?: string) => {
+  const addToCart = useCallback((product: Product, size?: string, variant?: { type: string; label: string; price: number }, quantity?: number) => {
     setCart((prev) => {
-      const existing = prev.find((item) => item.product.id === product.id);
+      const variantKey = variant ? `${variant.type}:${variant.label}` : "";
+      const existing = prev.find(
+        (item) => item.product.id === product.id && 
+        (variant ? (item.selectedVariant?.type === variant.type && item.selectedVariant?.label === variant.label) : !item.selectedVariant)
+      );
       if (existing) {
         return prev.map((item) =>
-          item.product.id === product.id
-            ? { ...item, quantity: item.quantity + 1 }
+          item.product.id === product.id && 
+          (variant ? (item.selectedVariant?.type === variant.type && item.selectedVariant?.label === variant.label) : !item.selectedVariant)
+            ? { ...item, quantity: item.quantity + (quantity || 1) }
             : item
         );
       }
-      return [...prev, { product, quantity: 1, selectedSize: size }];
+      return [...prev, { product, quantity: quantity || 1, selectedSize: size, selectedVariant: variant }];
     });
   }, []);
 
-  const removeFromCart = useCallback((productId: string) => {
-    setCart((prev) => prev.filter((item) => item.product.id !== productId));
+  const removeFromCart = useCallback((productId: string, variantKey?: string) => {
+    setCart((prev) => prev.filter((item) => {
+      if (item.product.id !== productId) return true;
+      if (variantKey) {
+        const itemKey = item.selectedVariant ? `${item.selectedVariant.type}:${item.selectedVariant.label}` : "";
+        return itemKey !== variantKey;
+      }
+      return false;
+    }));
   }, []);
 
-  const updateQuantity = useCallback((productId: string, qty: number) => {
+  const updateQuantity = useCallback((productId: string, qty: number, variantKey?: string) => {
     if (qty <= 0) {
-      setCart((prev) => prev.filter((item) => item.product.id !== productId));
+      removeFromCart(productId, variantKey);
     } else {
       setCart((prev) =>
-        prev.map((item) =>
-          item.product.id === productId ? { ...item, quantity: qty } : item
-        )
+        prev.map((item) => {
+          if (item.product.id !== productId) return item;
+          if (variantKey) {
+            const itemKey = item.selectedVariant ? `${item.selectedVariant.type}:${item.selectedVariant.label}` : "";
+            if (itemKey !== variantKey) return item;
+          }
+          return { ...item, quantity: qty };
+        })
       );
     }
-  }, []);
+  }, [removeFromCart]);
 
   const clearCart = useCallback(() => setCart([]), []);
 
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
   const cartTotal = cart.reduce(
-    (sum, item) => sum + item.product.price * item.quantity,
+    (sum, item) => sum + (item.selectedVariant?.price ?? item.product.price) * item.quantity,
     0
   );
 

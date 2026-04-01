@@ -33,9 +33,12 @@ export default function Cart() {
       <div className="flex-1 max-w-4xl mx-auto w-full px-4 py-10">
         <h1 className="text-3xl font-bold text-gray-900 mb-8">Shopping Cart</h1>
         <div className="space-y-4">
-          {cart.map((item) => (
+          {cart.map((item) => {
+            const variantKey = item.selectedVariant ? `${item.selectedVariant.type}:${item.selectedVariant.label}` : undefined;
+            const unitPrice = item.selectedVariant?.price ?? item.product.price;
+            return (
             <div
-              key={item.product.id}
+              key={`${item.product.id}-${variantKey || "default"}`}
               className="flex items-center gap-4 bg-gray-50 rounded-xl p-4"
             >
               <img
@@ -46,37 +49,41 @@ export default function Cart() {
               <div className="flex-1 min-w-0">
                 <h3 className="font-semibold text-gray-900 truncate">{item.product.name}</h3>
                 <p className="text-sm text-gray-500">{item.product.category}</p>
-                {item.selectedSize && (
+                {item.selectedVariant && (
+                  <p className="text-xs text-gray-500">{item.selectedVariant.type}: {item.selectedVariant.label}</p>
+                )}
+                {item.selectedSize && !item.selectedVariant && (
                   <p className="text-xs text-gray-500">Size: {item.selectedSize}</p>
                 )}
-                <p className="font-bold text-[#9966cc]">{formatLKR(item.product.price)}</p>
+                <p className="font-bold text-[#9966cc]">{formatLKR(unitPrice)}</p>
               </div>
               <div className="flex items-center gap-2">
                 <button
-                  onClick={() => updateQuantity(item.product.id, item.quantity - 1)}
+                  onClick={() => updateQuantity(item.product.id, item.quantity - 1, variantKey)}
                   className="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center hover:bg-gray-100"
                 >
                   <Minus className="w-4 h-4" />
                 </button>
                 <span className="w-8 text-center font-medium">{item.quantity}</span>
                 <button
-                  onClick={() => updateQuantity(item.product.id, item.quantity + 1)}
+                  onClick={() => updateQuantity(item.product.id, item.quantity + 1, variantKey)}
                   className="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center hover:bg-gray-100"
                 >
                   <Plus className="w-4 h-4" />
                 </button>
               </div>
               <p className="font-bold text-gray-900 w-28 text-right">
-                {formatLKR(item.product.price * item.quantity)}
+                {formatLKR(unitPrice * item.quantity)}
               </p>
               <button
-                onClick={() => removeFromCart(item.product.id)}
+                onClick={() => removeFromCart(item.product.id, variantKey)}
                 className="p-2 text-red-500 hover:bg-red-50 rounded-lg"
               >
                 <Trash2 className="w-5 h-5" />
               </button>
             </div>
-          ))}
+            );
+          })}
         </div>
         <div className="mt-8 bg-gray-50 rounded-xl p-6">
           <div className="flex justify-between items-center text-xl font-bold">

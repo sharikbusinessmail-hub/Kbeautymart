@@ -28,9 +28,9 @@ export default function Checkout() {
     customer: { ...form },
     items: cart.map((item) => ({
       productId: item.product.id,
-      name: item.product.name,
+      name: item.product.name + (item.selectedVariant ? ` (${item.selectedVariant.label})` : ""),
       quantity: item.quantity,
-      price: item.product.price,
+      price: item.selectedVariant?.price ?? item.product.price,
       selectedSize: item.selectedSize,
     })),
     itemCount: cart.reduce((sum, item) => sum + item.quantity, 0),
@@ -74,7 +74,8 @@ export default function Checkout() {
       message += `*Address:* ${form.address}\n\n`;
       message += `*Order Items:*\n`;
       cart.forEach((item) => {
-        message += `- ${item.product.name}${item.selectedSize ? ` (${item.selectedSize})` : ""} x${item.quantity} = ${formatLKR(item.product.price * item.quantity)}\n`;
+        const unitPrice = item.selectedVariant?.price ?? item.product.price;
+        message += `- ${item.product.name}${item.selectedVariant ? ` (${item.selectedVariant.label})` : ""}${item.selectedSize ? ` (${item.selectedSize})` : ""} x${item.quantity} = ${formatLKR(unitPrice * item.quantity)}\n`;
       });
       message += `\n*Total: ${formatLKR(cartTotal)}*`;
 
@@ -221,8 +222,10 @@ export default function Checkout() {
             <div className="bg-white rounded-xl p-6 shadow-sm sticky top-24">
               <h2 className="text-xl font-bold text-gray-900 mb-5">Order Summary</h2>
               <div className="space-y-4 mb-6">
-                {cart.map((item) => (
-                  <div key={item.product.id} className="flex gap-3">
+                {cart.map((item) => {
+                  const unitPrice = item.selectedVariant?.price ?? item.product.price;
+                  return (
+                  <div key={`${item.product.id}-${item.selectedVariant?.label || "default"}`} className="flex gap-3">
                     <img
                       src={item.product.image}
                       alt={item.product.name}
@@ -230,16 +233,20 @@ export default function Checkout() {
                     />
                     <div className="flex-1 min-w-0">
                       <p className="font-medium text-gray-900 text-sm truncate">{item.product.name}</p>
-                      {item.selectedSize && (
+                      {item.selectedVariant && (
+                        <p className="text-xs text-gray-500">{item.selectedVariant.type}: {item.selectedVariant.label}</p>
+                      )}
+                      {item.selectedSize && !item.selectedVariant && (
                         <p className="text-xs text-gray-500">Size: {item.selectedSize}</p>
                       )}
                       <p className="text-xs text-gray-500">Qty: {item.quantity}</p>
                       <p className="font-semibold text-[#9966cc] text-sm">
-                        {formatLKR(item.product.price * item.quantity)}
+                        {formatLKR(unitPrice * item.quantity)}
                       </p>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
 
               <div className="border-t border-gray-200 pt-4 space-y-2">

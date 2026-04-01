@@ -1,7 +1,7 @@
 
-  # High-Fidelity E-Commerce Landing Page
+  # K·BEAUTY MART
 
-  This is a code bundle for High-Fidelity E-Commerce Landing Page. The original project is available at https://www.figma.com/design/ZxbPNUHmK62zSpOIz88z2o/High-Fidelity-E-Commerce-Landing-Page.
+  This is a code bundle for K·BEAUTY MART. The original project is available at https://www.figma.com/design/ZxbPNUHmK62zSpOIz88z2o/K%C2%B7BEAUTY-MART.
 
   ## Running the code
 
